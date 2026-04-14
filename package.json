@@ -1,0 +1,9 @@
+{
+  "name": "ghost-writer",
+  "private": true,
+  "description": "Единая точка входа: Electron UI + Python бэкенд (см. web/)",
+  "scripts": {
+    "start": "npm --prefix web start",
+    "app": "npm --prefix web start"
+  }
+}

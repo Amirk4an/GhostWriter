@@ -1,0 +1,15 @@
+customtkinter
+faster-whisper
+numpy
+openai
+pillow
+pyinstaller
+pynput
+pyperclip
+pystray
+python-dotenv
+pytest
+scipy
+sounddevice
+pyobjc-framework-ApplicationServices>=10.0; platform_system == "Darwin"
+pyobjc-framework-Cocoa>=10.0; platform_system == "Darwin"
