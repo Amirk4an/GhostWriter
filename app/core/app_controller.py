@@ -5,8 +5,11 @@ from __future__ import annotations
 import logging
 import platform
 import queue
+import json
+import os
 import threading
 import time
+from pathlib import Path
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +23,26 @@ if TYPE_CHECKING:
     from app.ui.status_bridge import StatusBridge
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
+    """Пишет NDJSON-лог отладки без секретов."""
+    try:
+        _log_path = "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log"
+        Path(_log_path).parent.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, object] = {
+            "sessionId": "edce00",
+            "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(_log_path, "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
 
 
 @dataclass
@@ -214,6 +237,14 @@ class AppController:
         try:
             self._audio_engine.start_recording()
         except RuntimeError as error:
+            # region agent log
+            _agent_debug_log(
+                "H10",
+                "app_controller.py:_begin_dictate_recording:error",
+                "audio_engine.start_recording failed",
+                {"error": str(error), "latch": latch},
+            )
+            # endregion
             LOGGER.error("%s", error)
             self._emit_status("Error", str(error))
             self._recording_started_at = None
@@ -221,6 +252,14 @@ class AppController:
             self._dictate_latch_active = False
             self._hold_down_at = None
             return
+        # region agent log
+        _agent_debug_log(
+            "H10",
+            "app_controller.py:_begin_dictate_recording:ok",
+            "audio recording started",
+            {"latch": latch, "paste_target_app": self._paste_target_app or ""},
+        )
+        # endregion
         self._emit_status("Recording", "Hands-free" if latch else None)
 
     def _abort_dictate_recording(self) -> None:
@@ -244,6 +283,14 @@ class AppController:
         self._latch_arm_deadline = None
 
         if not audio_bytes:
+            # region agent log
+            _agent_debug_log(
+                "H10",
+                "app_controller.py:_end_dictate_recording:empty",
+                "recording stopped with empty audio",
+                {"recorded_ms": round(recorded_ms, 2), "was_latch": was_latch},
+            )
+            # endregion
             self._emit_status("Idle")
             self._paste_target_app = None
             return
@@ -262,6 +309,14 @@ class AppController:
         except queue.Full:
             LOGGER.warning("Очередь обработки заполнена, задание пропущено")
             self._emit_status("Idle")
+        # region agent log
+        _agent_debug_log(
+            "H10",
+            "app_controller.py:_end_dictate_recording:queued",
+            "audio queued for processing",
+            {"audio_bytes_len": len(audio_bytes), "recorded_ms": round(recorded_ms, 2)},
+        )
+        # endregion
 
     def reload_config(self) -> None:
         """Перезагружает конфиг во время работы."""
@@ -272,6 +327,19 @@ class AppController:
         if hasattr(self._audio_engine, "set_boost_quiet_input"):
             self._audio_engine.set_boost_quiet_input(cfg.whisper_mode_boost_input)
         LOGGER.info("Конфигурация обновлена во время выполнения")
+
+    def apply_audio_input_device(self, device: int | None) -> None:
+        """Сохраняет выбранный микрофон в config.json и применяет к движку записи."""
+        cfg = self._config_manager.patch_audio_input_device(device)
+        if hasattr(self._audio_engine, "set_input_device"):
+            self._audio_engine.set_input_device(cfg.audio_input_device)
+        if hasattr(self._audio_engine, "set_boost_quiet_input"):
+            self._audio_engine.set_boost_quiet_input(cfg.whisper_mode_boost_input)
+        LOGGER.info("Микрофон обновлён: %s", cfg.audio_input_device)
+
+    def get_audio_input_device_index(self) -> int | None:
+        """Возвращает текущий индекс микрофона из конфигурации."""
+        return self._config_manager.config.audio_input_device
 
     def _worker_loop(self) -> None:
         while True:
@@ -318,6 +386,14 @@ class AppController:
 
         raw_text = apply_glossary(raw_text, glossary_pairs)
         raw_preview = (raw_text or "").strip()
+        # region agent log
+        _agent_debug_log(
+            "H11",
+            "app_controller.py:_process_job:stt",
+            "transcription finished",
+            {"raw_text_len": len(raw_preview), "stt_ms": round(stt_ms, 2)},
+        )
+        # endregion
         if not raw_preview:
             LOGGER.warning(
                 "Транскрипт пустой после STT (проверьте микрофон, уровень сигнала и language в config.json)."
@@ -349,6 +425,14 @@ class AppController:
             if self._status_bridge is not None:
                 self._status_bridge.set_status("Processing", "Вставка в приложение…")
             self._output_adapter.output_text(processed_text, paste_target_app=job.paste_target_app)
+            # region agent log
+            _agent_debug_log(
+                "H11",
+                "app_controller.py:_process_job:output",
+                "output adapter called",
+                {"processed_text_len": len(processed_text), "target_app": job.paste_target_app or ""},
+            )
+            # endregion
         elif raw_preview:
             LOGGER.warning("Текст после LLM пустой, вставка пропущена.")
 

@@ -77,6 +77,25 @@ class ConfigManager:
             self._config = self._validate(raw_data)
             return self._config
 
+    def patch_audio_input_device(self, device: int | None) -> AppConfig:
+        """Записывает ``audio_input_device`` в ``config.json`` и обновляет кэш.
+
+        Args:
+            device: Индекс PortAudio или ``None`` (вход по умолчанию ОС).
+
+        Returns:
+            Актуальная конфигурация после записи.
+        """
+        with self._lock:
+            raw_data = self._read_json()
+            if device is None:
+                raw_data["audio_input_device"] = None
+            else:
+                raw_data["audio_input_device"] = int(device)
+            self._write_json(raw_data)
+            self._config = self._validate(raw_data)
+            return self._config
+
     def get_secret(self, key: str) -> str:
         """Возвращает секрет из переменных окружения."""
         value = os.getenv(key)
@@ -92,6 +111,14 @@ class ConfigManager:
             raise RuntimeError(f"Файл конфигурации не найден: {self._config_path}") from error
         except json.JSONDecodeError as error:
             raise RuntimeError(f"Некорректный JSON в {self._config_path}") from error
+
+    def _write_json(self, data: dict[str, Any]) -> None:
+        """Атомарно сохраняет JSON конфигурации."""
+        tmp_path = self._config_path.with_suffix(".json.tmp")
+        payload = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+        with tmp_path.open("w", encoding="utf-8") as file:
+            file.write(payload)
+        tmp_path.replace(self._config_path)
 
     def _parse_language(self, raw: dict[str, Any]) -> str | None:
         if "language" not in raw:

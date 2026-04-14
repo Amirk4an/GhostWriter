@@ -10,6 +10,7 @@ const net = require('net')
 const fs = require('fs')
 const readline = require('readline')
 const { spawn } = require('child_process')
+const { randomUUID } = require('crypto')
 
 /** Alt+Space = Option+Space на macOS в Electron */
 const GLOBAL_SHORTCUT = 'Alt+Space'
@@ -25,6 +26,11 @@ let shellLayoutMode = 'settings'
 /** Последние сообщения до готовности окон */
 const statusBacklog = []
 const BACKLOG_MAX = 32
+/** Очередь команд UI->backend до установления TCP-сокета статуса */
+const controlBacklog = []
+const CONTROL_BACKLOG_MAX = 32
+/** Ожидание ответов бэкенда по request_id (list/set микрофона и т.д.) */
+const pendingUiReplies = new Map()
 /** Главное окно: сайдбар + контент. */
 const PANEL_WIDTH = 1080
 const PANEL_HEIGHT = 700
@@ -34,6 +40,40 @@ const WIDGET_HEIGHT = 56
 const OVERLAY_POSITION_FILE = 'overlay-compact-position.json'
 
 let widgetPositionSaveTimer = null
+
+/** Зарегистрированный accelerator dictation (если есть) */
+let registeredDictationAccelerator = null
+/** Таймер авто-release для press-to-talk в Electron globalShortcut */
+let dictateAutoUpTimer = null
+/** latch для hands-free режима (toggle по каждому срабатыванию accelerator) */
+let dictateHandsFreeOpen = false
+/** Временная метка последнего принятого срабатывания hotkey (anti-repeat) */
+let lastDictationShortcutTs = 0
+
+// #region agent log
+function agentDebugLog(hypothesisId, location, message, data) {
+  fetch('http://127.0.0.1:7479/ingest/ce775ce2-ad04-4795-95d0-f5a1b0a206ce', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'edce00' },
+    body: JSON.stringify({
+      sessionId: 'edce00',
+      runId: process.env.GHOST_DEBUG_RUN_ID || 'run1',
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+}
+// #endregion
+
+// #region agent log
+agentDebugLog('H7', 'web/electron/main.cjs:boot', 'Electron main process boot', {
+  electronPid: process.pid,
+  argvHead: process.argv.slice(0, 6),
+})
+// #endregion
 
 function projectRoot() {
   return path.join(__dirname, '..', '..')
@@ -82,6 +122,150 @@ function flushStatusBacklog() {
   }
 }
 
+function flushControlBacklog() {
+  if (controlBacklog.length === 0) return
+  if (!statusSocket || statusSocket.destroyed) return
+  const pending = controlBacklog.splice(0, controlBacklog.length)
+  for (const line of pending) {
+    try {
+      statusSocket.write(line)
+    } catch (e) {
+      console.warn('[ghost-writer] не удалось отправить команду backend:', e)
+    }
+  }
+}
+
+function enqueueControlLine(line) {
+  controlBacklog.push(line)
+  while (controlBacklog.length > CONTROL_BACKLOG_MAX) {
+    controlBacklog.shift()
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} payload полезная нагрузка без request_id
+ * @param {number} [timeoutMs]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+function sendToBackendAndWait(payload, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const request_id = randomUUID()
+    const timer = setTimeout(() => {
+      pendingUiReplies.delete(request_id)
+      reject(new Error('Таймаут ответа бэкенда'))
+    }, timeoutMs)
+    pendingUiReplies.set(request_id, (msg) => {
+      clearTimeout(timer)
+      resolve(msg)
+    })
+    const line = JSON.stringify({ ...payload, request_id }) + '\n'
+    if (statusSocket && !statusSocket.destroyed) {
+      try {
+        statusSocket.write(line)
+      } catch (e) {
+        clearTimeout(timer)
+        pendingUiReplies.delete(request_id)
+        reject(e)
+      }
+    } else {
+      clearTimeout(timer)
+      pendingUiReplies.delete(request_id)
+      reject(new Error('Бэкенд не подключён'))
+    }
+  })
+}
+
+function sendDictateEdgeToBackend(pressed) {
+  const payload = JSON.stringify({
+    type: 'dictate_edge',
+    pressed: Boolean(pressed),
+    ts: Date.now(),
+  })
+  const line = `${payload}\n`
+  if (statusSocket && !statusSocket.destroyed) {
+    try {
+      statusSocket.write(line)
+    } catch (e) {
+      console.warn('[ghost-writer] write dictate_edge failed:', e)
+      enqueueControlLine(line)
+    }
+  } else {
+    enqueueControlLine(line)
+  }
+}
+
+function loadDictationHotkeySpec() {
+  try {
+    const cfgPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'ghost_backend', 'config', 'config.json')
+      : path.join(projectRoot(), 'config', 'config.json')
+    if (!fs.existsSync(cfgPath)) {
+      console.warn('[ghost-writer] config.json не найден:', cfgPath)
+      return { hotkey: 'f8', handsFreeEnabled: true }
+    }
+    const raw = fs.readFileSync(cfgPath, 'utf8')
+    const cfg = JSON.parse(raw)
+    const hotkey = typeof cfg.hotkey === 'string' && cfg.hotkey.trim() ? cfg.hotkey.trim() : 'f8'
+    const handsFreeEnabled = cfg.hands_free_enabled !== false
+    return { hotkey, handsFreeEnabled }
+  } catch (e) {
+    console.warn('[ghost-writer] не удалось прочитать hotkey из config.json:', e)
+    return { hotkey: 'f8', handsFreeEnabled: true }
+  }
+}
+
+function hotkeyToElectronAccelerator(raw) {
+  const parts = String(raw || '')
+    .replace(/\s+/g, '')
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => p.toLowerCase())
+  if (parts.length === 0) return null
+  const mods = parts.slice(0, -1)
+  const key = parts[parts.length - 1]
+
+  const outMods = []
+  for (const m of mods) {
+    if (m === 'cmd' || m === 'super' || m === 'win') {
+      outMods.push(process.platform === 'darwin' ? 'Command' : 'Super')
+    } else if (m === 'ctrl' || m === 'control') {
+      outMods.push('Control')
+    } else if (m === 'alt' || m === 'option') {
+      outMods.push(process.platform === 'darwin' ? 'Option' : 'Alt')
+    } else if (m === 'shift') {
+      outMods.push('Shift')
+    } else {
+      return null
+    }
+  }
+
+  let keyAcc = null
+  if (key.length === 1) {
+    keyAcc = key.toUpperCase()
+  } else if (key.startsWith('f') && /^f\d{1,2}$/.test(key)) {
+    keyAcc = `F${key.slice(1)}`
+  } else {
+    const map = {
+      space: 'Space',
+      tab: 'Tab',
+      enter: 'Enter',
+      return: 'Enter',
+      esc: 'Escape',
+      escape: 'Escape',
+      backspace: 'Backspace',
+      delete: 'Delete',
+      up: 'Up',
+      down: 'Down',
+      left: 'Left',
+      right: 'Right',
+    }
+    keyAcc = map[key] || null
+  }
+  if (!keyAcc) return null
+  return [...outMods, keyAcc].join('+')
+}
+
 function startStatusServer() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer((sock) => {
@@ -95,7 +279,19 @@ function startStatusServer() {
         if (!trimmed) return
         try {
           const msg = JSON.parse(trimmed)
-          forwardGhostStatus(msg)
+          if (msg && typeof msg === 'object' && msg.request_id != null) {
+            const rid = String(msg.request_id)
+            const cb = pendingUiReplies.get(rid)
+            if (cb) {
+              pendingUiReplies.delete(rid)
+              cb(msg)
+              return
+            }
+          }
+          if (msg && typeof msg === 'object' && 'status' in msg) {
+            forwardGhostStatus(msg)
+            return
+          }
         } catch (e) {
           console.warn('[ghost-writer] bad status JSON:', trimmed.slice(0, 120))
         }
@@ -108,6 +304,8 @@ function startStatusServer() {
         rl.close()
         if (statusSocket === sock) statusSocket = null
       })
+
+      flushControlBacklog()
     })
     srv.on('error', reject)
     srv.listen(0, '127.0.0.1', () => {
@@ -162,7 +360,25 @@ function spawnPythonBackend(port) {
     })
   }
 
+  // #region agent log
+  if (pythonChild) {
+    agentDebugLog('H5', 'web/electron/main.cjs:spawnPythonBackend', 'Electron spawn python backend', {
+      electronPid: process.pid,
+      pythonChildPid: pythonChild.pid ?? null,
+      packaged: app.isPackaged,
+    })
+  }
+  // #endregion
+
   pythonChild.on('exit', (code, signal) => {
+    // #region agent log
+    agentDebugLog('H8', 'web/electron/main.cjs:python-exit', 'Python child exited', {
+      electronPid: process.pid,
+      code: code ?? null,
+      signal: signal ?? null,
+      appIsQuitting,
+    })
+    // #endregion
     pythonChild = null
     console.warn('[ghost-writer] Python завершился', { code, signal })
     if (!appIsQuitting) {
@@ -450,15 +666,112 @@ function registerGlobalShortcut() {
       }
     }
   })
+  // #region agent log
+  agentDebugLog('H16', 'web/electron/main.cjs:registerGlobalShortcut', 'register Alt+Space', {
+    ok,
+    electronPid: process.pid,
+  })
+  // #endregion
 
   if (!ok) {
     console.warn(
       `[wispr] Не удалось зарегистрировать глобальный шорткат "${GLOBAL_SHORTCUT}".`,
     )
   }
+
+  const spec = loadDictationHotkeySpec()
+  const acc = hotkeyToElectronAccelerator(spec.hotkey)
+  if (registeredDictationAccelerator) {
+    try {
+      globalShortcut.unregister(registeredDictationAccelerator)
+    } catch (e) {
+      /* ignore */
+    }
+    registeredDictationAccelerator = null
+  }
+  if (!acc) {
+    console.warn('[ghost-writer] Не удалось сопоставить hotkey с Electron accelerator:', spec.hotkey)
+    return
+  }
+
+  const okDict = globalShortcut.register(acc, () => {
+    const now = Date.now()
+    if (now - lastDictationShortcutTs < 350) {
+      // #region agent log
+      agentDebugLog(
+        'H17',
+        'web/electron/main.cjs:dictationShortcutIgnored',
+        'dictation accelerator ignored by debounce',
+        {
+          accelerator: acc,
+          deltaMs: now - lastDictationShortcutTs,
+          electronPid: process.pid,
+        },
+      )
+      // #endregion
+      return
+    }
+    lastDictationShortcutTs = now
+
+    // #region agent log
+    agentDebugLog('H17', 'web/electron/main.cjs:dictationShortcut', 'dictation accelerator fired', {
+      accelerator: acc,
+      handsFreeEnabled: spec.handsFreeEnabled,
+      electronPid: process.pid,
+    })
+    // #endregion
+
+    if (dictateAutoUpTimer) {
+      clearTimeout(dictateAutoUpTimer)
+      dictateAutoUpTimer = null
+    }
+
+    if (spec.handsFreeEnabled) {
+      dictateHandsFreeOpen = !dictateHandsFreeOpen
+      sendDictateEdgeToBackend(dictateHandsFreeOpen)
+      return
+    }
+
+    // press-to-talk: globalShortcut не даёт release, эмулируем короткое удержание
+    sendDictateEdgeToBackend(true)
+    dictateAutoUpTimer = setTimeout(() => {
+      sendDictateEdgeToBackend(false)
+      dictateAutoUpTimer = null
+    }, 220)
+  })
+
+  // #region agent log
+  agentDebugLog('H17', 'web/electron/main.cjs:registerGlobalShortcut', 'register dictation accelerator', {
+    ok: okDict,
+    accelerator: acc,
+    rawHotkey: spec.hotkey,
+    handsFreeEnabled: spec.handsFreeEnabled,
+    electronPid: process.pid,
+  })
+  // #endregion
+
+  if (!okDict) {
+    console.warn('[ghost-writer] Не удалось зарегистрировать dictation accelerator:', acc)
+    return
+  }
+  registeredDictationAccelerator = acc
 }
 
 app.whenReady().then(async () => {
+  // #region agent log
+  agentDebugLog('H7', 'web/electron/main.cjs:whenReady', 'app.whenReady reached', {
+    electronPid: process.pid,
+    alreadyHasPythonChild: Boolean(pythonChild),
+  })
+  agentDebugLog('H13', 'web/electron/main.cjs:dock-state', 'dock state at startup', {
+    electronPid: process.pid,
+    platform: process.platform,
+    dockVisible:
+      process.platform === 'darwin' && app.dock && typeof app.dock.isVisible === 'function'
+        ? app.dock.isVisible()
+        : null,
+  })
+  // #endregion
   const skipPython = process.env.GHOST_WRITER_UI_ONLY === '1'
 
   if (!skipPython) {
@@ -502,14 +815,58 @@ app.whenReady().then(async () => {
       applyGhostShellLayout(panelWindow, mode)
     }
   })
+
+  ipcMain.handle('ghost:list-audio-inputs', async () => {
+    const msg = await sendToBackendAndWait({ type: 'list_audio_inputs' })
+    if (!msg || !msg.ok) {
+      throw new Error(typeof msg?.error === 'string' ? msg.error : 'Не удалось получить список микрофонов')
+    }
+    return {
+      devices: Array.isArray(msg.devices) ? msg.devices : [],
+      defaultIndex: msg.default_index == null ? null : Number(msg.default_index),
+      currentIndex: msg.current_index == null ? null : Number(msg.current_index),
+    }
+  })
+
+  ipcMain.handle('ghost:set-audio-input-device', async (_evt, deviceIndex) => {
+    const msg = await sendToBackendAndWait({
+      type: 'set_audio_input_device',
+      device: deviceIndex === undefined ? null : deviceIndex,
+    })
+    if (!msg || !msg.ok) {
+      throw new Error(typeof msg?.error === 'string' ? msg.error : 'Не удалось сохранить микрофон')
+    }
+    return { currentIndex: msg.current_index == null ? null : Number(msg.current_index) }
+  })
 })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+// #region agent log
+app.on('second-instance', (_event, argv) => {
+  agentDebugLog('H7', 'web/electron/main.cjs:second-instance', 'second app instance detected', {
+    electronPid: process.pid,
+    argvHead: Array.isArray(argv) ? argv.slice(0, 6) : [],
+  })
+})
+// #endregion
+
 app.on('before-quit', () => {
   appIsQuitting = true
+  if (dictateAutoUpTimer) {
+    clearTimeout(dictateAutoUpTimer)
+    dictateAutoUpTimer = null
+  }
+  if (registeredDictationAccelerator) {
+    try {
+      globalShortcut.unregister(registeredDictationAccelerator)
+    } catch (e) {
+      /* ignore */
+    }
+    registeredDictationAccelerator = null
+  }
   if (widgetPositionSaveTimer) {
     clearTimeout(widgetPositionSaveTimer)
     widgetPositionSaveTimer = null

@@ -1,3 +1,4 @@
+import type { GhostAudioInputsPayload } from '../wispr-shell'
 import type { GhostAppSettings } from '../types/settings'
 import { defaultGhostAppSettings } from '../types/settings'
 
@@ -68,5 +69,29 @@ export const ghostIpc = {
     }
     writeStoredSettings(memorySettings)
     return { ...memorySettings }
+  },
+
+  async listAudioInputs(): Promise<GhostAudioInputsPayload> {
+    const shell = typeof window !== 'undefined' ? window.wisprShell : undefined
+    if (shell?.listAudioInputs) {
+      return shell.listAudioInputs()
+    }
+    await delay(200)
+    return {
+      devices: [
+        { index: 0, name: 'Мок: встроенный микрофон (только веб-режим)', is_default: true },
+      ],
+      defaultIndex: 0,
+      currentIndex: 0,
+    }
+  },
+
+  async setAudioInputDevice(deviceIndex: number | null): Promise<{ currentIndex: number | null }> {
+    const shell = typeof window !== 'undefined' ? window.wisprShell : undefined
+    if (shell?.setAudioInputDevice) {
+      return shell.setAudioInputDevice(deviceIndex)
+    }
+    await delay(200)
+    return { currentIndex: deviceIndex }
   },
 }

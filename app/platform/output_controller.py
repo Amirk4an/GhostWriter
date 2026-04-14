@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import json
+import os
 import platform
+from pathlib import Path
 import subprocess
 import time
 
@@ -13,6 +16,26 @@ from pynput.keyboard import Controller, Key
 from app.core.interfaces import OutputAdapter
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
+    """Пишет NDJSON-лог отладки без секретов."""
+    try:
+        _log_path = "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log"
+        Path(_log_path).parent.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, object] = {
+            "sessionId": "edce00",
+            "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(_log_path, "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
 
 
 class ClipboardOutputController(OutputAdapter):
@@ -36,6 +59,14 @@ class ClipboardOutputController(OutputAdapter):
             if paste_target_app:
                 LOGGER.info("Вставка в приложение с фокусом при записи: %s", paste_target_app)
             ok = self._darwin_activate_and_paste(paste_target_app)
+            # region agent log
+            _agent_debug_log(
+                "H12",
+                "output_controller.py:output_text:darwin",
+                "darwin paste attempt finished",
+                {"ok": ok, "paste_target_app": paste_target_app or "", "text_len": len(text)},
+            )
+            # endregion
             if not ok:
                 LOGGER.warning(
                     "Вставка не удалась (ни pynput, ни запасной osascript). Проверьте Универсальный доступ "
@@ -123,6 +154,14 @@ class ClipboardOutputController(OutputAdapter):
             "end tell"
         )
         if self._run_osascript(script_keycode_paste, []):
+            # region agent log
+            _agent_debug_log(
+                "H12",
+                "output_controller.py:_darwin_activate_and_paste:keycode",
+                "paste via key code succeeded",
+                {"app_name": app_name or ""},
+            )
+            # endregion
             return True
 
         try:
@@ -142,11 +181,29 @@ class ClipboardOutputController(OutputAdapter):
             "end run"
         )
         if app_name:
-            return self._run_osascript(script_global_v, [app_name])
+            ok = self._run_osascript(script_global_v, [app_name])
+            # region agent log
+            _agent_debug_log(
+                "H12",
+                "output_controller.py:_darwin_activate_and_paste:global_v",
+                "fallback global_v finished",
+                {"ok": ok, "app_name": app_name},
+            )
+            # endregion
+            return ok
         script_se = (
             'tell application "System Events"\n'
             "\tdelay 0.12\n"
             '\tkeystroke "v" using command down\n'
             "end tell"
         )
-        return self._run_osascript(script_se, [])
+        ok = self._run_osascript(script_se, [])
+        # region agent log
+        _agent_debug_log(
+            "H12",
+            "output_controller.py:_darwin_activate_and_paste:system_events",
+            "fallback system events finished",
+            {"ok": ok},
+        )
+        # endregion
+        return ok

@@ -27,6 +27,10 @@ class StatusBridge:
         self._mp_queue: MPQueue | None = mp_queue
         self._on_broadcast = on_broadcast
 
+    def set_on_broadcast(self, on_broadcast: Callable[[str, str | None], None] | None) -> None:
+        """Подключает или меняет обработчик рассылки статуса (например, после создания StatusPushClient)."""
+        self._on_broadcast = on_broadcast
+
     def set_status(self, status: str, detail: str | None = None) -> None:
         with self._lock:
             self._status = status

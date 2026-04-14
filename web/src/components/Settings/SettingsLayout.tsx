@@ -1,9 +1,12 @@
 import { ArrowLeft, Moon, Sun } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import type { GhostAudioInputDevice } from '../../wispr-shell'
 import type { GhostAppSettings, SettingsTabId } from '../../types/settings'
 import { SETTINGS_TABS } from './tabs'
 import { Button, Card, Select, Toggle } from '../ui'
 import { ghostIpc } from '../../services/ipc'
+
+const MIC_DEFAULT_VALUE = '__system_default__'
 
 const fieldClass =
   'mt-1 w-full rounded-xl border border-zinc-200/80 bg-white/80 px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-zinc-900/60 dark:text-white/90 dark:placeholder:text-white/35 dark:focus:border-emerald-400/40'
@@ -25,10 +28,43 @@ export function SettingsLayout({
   const [activeTab, setActiveTab] = useState<SettingsTabId>('general')
   const [settings, setSettings] = useState<GhostAppSettings>(initialSettings)
   const [saving, setSaving] = useState(false)
+  const [audioInputs, setAudioInputs] = useState<GhostAudioInputDevice[]>([])
+  const [audioCurrentIndex, setAudioCurrentIndex] = useState<number | null>(null)
+  const [audioLoading, setAudioLoading] = useState(false)
+  const [audioSaving, setAudioSaving] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
 
   useEffect(() => {
     setSettings(initialSettings)
   }, [initialSettings])
+
+  useEffect(() => {
+    if (activeTab !== 'stt') return
+    let cancelled = false
+    setAudioLoading(true)
+    setAudioError(null)
+    void ghostIpc
+      .listAudioInputs()
+      .then((r) => {
+        if (cancelled) return
+        setAudioInputs(r.devices)
+        setAudioCurrentIndex(
+          r.currentIndex === undefined || r.currentIndex === null
+            ? null
+            : Number(r.currentIndex),
+        )
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setAudioError(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => {
+        if (!cancelled) setAudioLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab])
 
   const persist = useCallback(async (partial: Partial<GhostAppSettings>) => {
     setSaving(true)
@@ -43,6 +79,10 @@ export function SettingsLayout({
 
   const active = SETTINGS_TABS.find((t) => t.id === activeTab)
   const isModal = variant === 'modal'
+  const micSelectValue =
+    audioCurrentIndex === null || audioCurrentIndex === undefined
+      ? MIC_DEFAULT_VALUE
+      : String(audioCurrentIndex)
 
   return (
     <div
@@ -191,6 +231,49 @@ export function SettingsLayout({
 
             {activeTab === 'stt' ? (
               <Card interactive className="space-y-4">
+                <Select
+                  label="Микрофон"
+                  hint={
+                    typeof window !== 'undefined' && window.wisprShell?.listAudioInputs
+                      ? 'Список из Python (sounddevice); значение пишется в config.json → audio_input_device.'
+                      : 'В браузерной сборке показан пример списка; в GhostWriter.app выбор синхронизируется с бэкендом.'
+                  }
+                  value={micSelectValue}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    const next = v === MIC_DEFAULT_VALUE ? null : parseInt(v, 10)
+                    setAudioSaving(true)
+                    setAudioError(null)
+                    void ghostIpc
+                      .setAudioInputDevice(next)
+                      .then((r) => {
+                        setAudioCurrentIndex(
+                          r.currentIndex === undefined || r.currentIndex === null
+                            ? null
+                            : Number(r.currentIndex),
+                        )
+                      })
+                      .catch((err: unknown) => {
+                        setAudioError(err instanceof Error ? err.message : String(err))
+                      })
+                      .finally(() => setAudioSaving(false))
+                  }}
+                  disabled={saving || audioLoading || audioSaving || audioInputs.length === 0}
+                >
+                  <option value={MIC_DEFAULT_VALUE}>По умолчанию (как в системе)</option>
+                  {audioInputs.map((d) => (
+                    <option key={d.index} value={String(d.index)}>
+                      [{d.index}] {d.name}
+                      {d.is_default ? ' — default' : ''}
+                    </option>
+                  ))}
+                </Select>
+                {audioLoading ? (
+                  <p className="text-xs text-zinc-500 dark:text-white/45">Загрузка списка микрофонов…</p>
+                ) : null}
+                {audioError ? (
+                  <p className="text-xs text-red-600 dark:text-red-400">{audioError}</p>
+                ) : null}
                 <Select
                   label="Провайдер распознавания речи"
                   hint="Путь OpenAI — заглушка, пока не подключены ключи бэкенда."

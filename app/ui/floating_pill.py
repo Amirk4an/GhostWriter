@@ -161,6 +161,39 @@ def run_floating_pill_loop_mp(
     poll_ms: int = 100,
 ) -> None:
     """Pill в отдельном процессе: на macOS сначала AppKit (без Tk), иначе CustomTkinter."""
+    # region agent log
+    import json
+    import os
+    import time
+    from pathlib import Path
+
+    import multiprocessing as mp
+
+    try:
+        Path("/Users/krasikov/projects/ghostwriter/.cursor").mkdir(parents=True, exist_ok=True)
+        _payload = {
+            "sessionId": "edce00",
+            "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
+            "hypothesisId": "H2",
+            "location": "floating_pill.py:run_floating_pill_loop_mp:entry",
+            "message": "вход в целевую функцию pill-процесса",
+            "data": {
+                "pid": os.getpid(),
+                "ppid": os.getppid(),
+                "mp_process_name": mp.current_process().name,
+            },
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(
+            "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log",
+            "a",
+            encoding="utf-8",
+        ) as _df:
+            _df.write(json.dumps(_payload, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+    # endregion
+
     import platform
 
     if platform.system() == "Darwin":

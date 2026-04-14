@@ -3,6 +3,16 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('wisprShell', {
   platform: process.platform,
 
+  /** Список микрофонов (PortAudio) через Python-бэкенд */
+  listAudioInputs: () => ipcRenderer.invoke('ghost:list-audio-inputs'),
+
+  /**
+   * Сохраняет индекс микрофона в config.json и применяет в бэкенде.
+   * @param {number | null} deviceIndex индекс или null = вход по умолчанию ОС
+   */
+  setAudioInputDevice: (deviceIndex) =>
+    ipcRenderer.invoke('ghost:set-audio-input-device', deviceIndex),
+
   /**
    * Глобальный шорткат (Alt+Space / Option+Space) — переключение в режим listening.
    * @param {() => void} callback

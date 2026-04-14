@@ -67,6 +67,14 @@ bash build_backend.sh
 npm --prefix web run build:app
 ```
 
+Скрипт `build_backend.sh` собирает backend с `--collect-data faster_whisper`, чтобы в `.app` гарантированно попадали VAD-ассеты (`silero_vad_v6.onnx`).
+
+**Сборка бэкенда и multiprocessing:** в `main.py` вызывается `multiprocessing.freeze_support()` в блоке `if __name__ == "__main__"`. Без этого PyInstaller при режиме `spawn` на macOS может многократно перезапускать бинарник `ghost_backend` (в Activity Monitor выглядит как «размножение» процессов). После изменения точки входа **пересоберите** бэкенд (`bash build_backend.sh`) и заново соберите `.app`.
+
+**Глобальный хоткей в Electron (.app):** dictation hotkey из `config/config.json` регистрируется в Electron (`globalShortcut`) и передаётся в Python по TCP-каналу статуса, чтобы не было конфликта «Electron перехватил клавишу, а pynput в backend её не видит».
+
+**Микрофон:** в панели Electron откройте **Настройки → Распознавание речи** — там есть выбор устройства ввода; выбранный индекс сохраняется в `config.json` как `audio_input_device` (или `null` для «как в системе»).
+
 ## Структура репозитория
 
 | Путь | Назначение |
