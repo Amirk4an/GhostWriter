@@ -13,6 +13,19 @@ from pystray import Menu, MenuItem
 from app.core.config_manager import ConfigManager
 
 
+def _status_code_to_ru(code: str) -> str:
+    """Переводит внутренний код статуса в подпись для меню трея."""
+    if code == "Recording":
+        return "Запись"
+    if code == "Processing":
+        return "Обработка"
+    if code == "Error":
+        return "Ошибка"
+    if code == "Idle":
+        return "Ожидание"
+    return code
+
+
 class TrayApplication:
     """Управляет иконкой в трее и окном настроек."""
 
@@ -33,9 +46,13 @@ class TrayApplication:
         config = self._config_manager.config
         image = self._build_icon(config.primary_color)
         menu = Menu(
-            MenuItem(lambda _: f"Status: {self._status_provider()}", None, enabled=False),
+            MenuItem(
+                lambda _: f"Статус: {_status_code_to_ru(self._status_provider())}",
+                None,
+                enabled=False,
+            ),
             MenuItem("Настройки", self._open_settings_window),
-            MenuItem("Reload config", self._reload_config),
+            MenuItem("Перезагрузить конфиг", self._reload_config),
             MenuItem("Выход", self._quit),
         )
         self._icon = pystray.Icon(name=config.app_name, icon=image, title=config.app_name, menu=menu)
@@ -64,25 +81,25 @@ class TrayApplication:
         root.title(config.app_name)
         root.geometry("520x320")
 
-        title = ctk.CTkLabel(root, text=f"{config.app_name} - Settings", font=("Arial", 18, "bold"))
+        title = ctk.CTkLabel(root, text=f"{config.app_name} — настройки", font=("Arial", 18, "bold"))
         title.pack(pady=10)
 
         cmd_hk = getattr(config, "command_mode_hotkey", "") or "—"
         pill = getattr(config, "floating_pill_enabled", True)
         config_text = (
-            f"Hotkey: {config.hotkey}\n"
-            f"Command hotkey: {cmd_hk}\n"
-            f"Floating pill: {pill}\n"
+            f"Горячая клавиша: {config.hotkey}\n"
+            f"Режим команд (hotkey): {cmd_hk}\n"
+            f"Плавающий индикатор: {pill}\n"
             f"Whisper backend: {config.whisper_backend}\n"
-            f"Whisper model: {config.whisper_model}\n"
-            f"LLM model: {config.llm_model}\n"
-            f"LLM enabled: {config.llm_enabled}\n"
-            f"Status: {self._status_provider()}"
+            f"Модель Whisper: {config.whisper_model}\n"
+            f"Модель LLM: {config.llm_model}\n"
+            f"LLM включён: {config.llm_enabled}\n"
+            f"Статус: {_status_code_to_ru(self._status_provider())}"
         )
         info = ctk.CTkLabel(root, text=config_text, justify="left")
         info.pack(pady=12)
 
-        reload_button = ctk.CTkButton(root, text="Reload config", command=self._on_reload_config)
+        reload_button = ctk.CTkButton(root, text="Перезагрузить конфиг", command=self._on_reload_config)
         reload_button.pack(pady=8)
 
         note = ctk.CTkLabel(

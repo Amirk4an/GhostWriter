@@ -1,6 +1,6 @@
 # Ghost Writer (VoiceFlow WL)
 
-Диктовка с глобальным хоткеем: запись с микрофона → STT (локальный **faster-whisper** или **OpenAI Whisper**) → опциональная постобработка через LLM → вставка текста в активное приложение. Есть режим **Python-only** (трей и плавающий индикатор) и режим **Electron + React** с единым UI.
+Диктовка с глобальным хоткеем: запись с микрофона → STT (локальный **faster-whisper** или **OpenAI Whisper**) → опциональная постобработка через LLM → вставка текста в активное приложение. Есть режим **Python-only** (трей и плавающий индикатор) и режим **Electron + React** с единым UI (панель с сайдбаром и экраном транскрипции; подробности в [web/README.md](web/README.md)).
 
 Подробнее о пайплайне и модулях: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Настройки и переменные окружения: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 

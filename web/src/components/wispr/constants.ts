@@ -19,3 +19,26 @@ export const SHELL_SHADOW: Record<WisprState, string> = {
 export function shellClassNames(state: WisprState): string {
   return `${SHELL_BASE} ${SHELL_SHADOW[state]}`
 }
+
+/**
+ * Состояния компактного оверлея (голосовой UI) — маппинг на «wispr»-стекло и тени.
+ * recording → подсветка как у listening (синий неон), error → красный акцент.
+ */
+export type OverlayVoiceState =
+  | 'idle'
+  | 'recording'
+  | 'processing'
+  | 'error'
+
+export function overlayPillClassNames(state: OverlayVoiceState): string {
+  if (state === 'error') {
+    return `${SHELL_BASE} border-red-400/35 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.55),0_0_22px_rgba(248,113,113,0.38)]`
+  }
+  const wispr: WisprState =
+    state === 'recording'
+      ? 'listening'
+      : state === 'processing'
+        ? 'processing'
+        : 'idle'
+  return `${SHELL_BASE} ${SHELL_SHADOW[wispr]}`
+}

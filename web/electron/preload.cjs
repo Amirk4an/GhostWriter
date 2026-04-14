@@ -19,8 +19,8 @@ contextBridge.exposeInMainWorld('wisprShell', {
   },
 
   /**
-   * true = клики «проходят» сквозь окно (прозрачная область).
-   * false = обычный hit-test (капсула кликабельна).
+   * true = клики «проходят» сквозь текущее окно (прозрачная область).
+   * false = обычный hit-test. Main-процесс применяет к окну-отправителю (панель или капсула).
    * @param {boolean} enabled
    */
   setWindowPassthrough: (enabled) => {

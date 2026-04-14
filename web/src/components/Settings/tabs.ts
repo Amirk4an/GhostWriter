@@ -9,27 +9,27 @@ export type SettingsTabDef = {
 export const SETTINGS_TABS: readonly SettingsTabDef[] = [
   {
     id: 'general',
-    label: 'General',
-    description: 'Appearance, startup behavior, and defaults.',
+    label: 'Общие',
+    description: 'Оформление, поведение при запуске и значения по умолчанию.',
   },
   {
     id: 'stt',
-    label: 'STT Providers',
-    description: 'Whisper on-device vs cloud transcription.',
+    label: 'Распознавание речи',
+    description: 'Whisper на устройстве или облачная транскрипция.',
   },
   {
     id: 'llm',
-    label: 'LLM Post-processing',
-    description: 'Optional cleanup and formatting after STT.',
+    label: 'Постобработка LLM',
+    description: 'Дополнительная очистка и форматирование после STT.',
   },
   {
     id: 'prompts',
-    label: 'App Prompts',
-    description: 'Context packs for Slack, Mail, and more.',
+    label: 'Промпты приложений',
+    description: 'Контекстные наборы для Slack, почты и других программ.',
   },
   {
     id: 'shortcuts',
-    label: 'Shortcuts',
-    description: 'Global hotkeys and overlay visibility.',
+    label: 'Сочетания клавиш',
+    description: 'Глобальные горячие клавиши и подсказки поверх окон.',
   },
 ] as const

@@ -9,6 +9,10 @@ export type SttProviderMode = 'whisper_local' | 'openai'
 
 export type GhostAppSettings = {
   theme: 'dark' | 'light'
+  /** Подпись в сайдбаре и шапке (white-label). */
+  appTitle: string
+  /** Имя для строки приветствия на главном экране. */
+  displayName: string
   sttProvider: SttProviderMode
   openaiApiKeyPlaceholder: string
   llmEnabled: boolean
@@ -18,6 +22,8 @@ export type GhostAppSettings = {
 
 export const defaultGhostAppSettings: GhostAppSettings = {
   theme: 'dark',
+  appTitle: 'Ghost Writer',
+  displayName: '',
   sttProvider: 'whisper_local',
   openaiApiKeyPlaceholder: '',
   llmEnabled: false,
