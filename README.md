@@ -58,6 +58,15 @@ npm --prefix web run build
 npm --prefix web run start:dist
 ```
 
+### Сборка macOS-приложения (.app)
+
+Сначала соберите бинарник Python в корневой каталог `dist/`, затем упакуйте Electron (артефакты — `web/release/`, в том числе `.app`, `.dmg` и `.zip`):
+
+```bash
+bash build_backend.sh
+npm --prefix web run build:app
+```
+
 ## Структура репозитория
 
 | Путь | Назначение |

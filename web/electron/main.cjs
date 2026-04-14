@@ -117,30 +117,51 @@ function startStatusServer() {
 }
 
 function spawnPythonBackend(port) {
-  const rootDir = projectRoot()
-  const mainPy = path.join(rootDir, 'main.py')
-  if (!fs.existsSync(mainPy)) {
-    console.error('[ghost-writer] main.py не найден:', mainPy)
-    return
-  }
-  const py = resolvePythonExe(rootDir)
   const env = {
     ...process.env,
     GHOST_WRITER_ELECTRON_UI: '1',
     GHOST_WRITER_PUSH_STATUS_HOST: '127.0.0.1',
     GHOST_WRITER_PUSH_STATUS_PORT: String(port),
   }
-  pythonChild = spawn(py, [mainPy], {
-    cwd: rootDir,
-    env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  pythonChild.stdout?.on('data', (buf) => {
-    process.stdout.write(`[python] ${buf}`)
-  })
-  pythonChild.stderr?.on('data', (buf) => {
-    process.stderr.write(`[python] ${buf}`)
-  })
+
+  if (app.isPackaged) {
+    const resourcesPath = process.resourcesPath
+    const backendName =
+      process.platform === 'win32' ? 'ghost_backend.exe' : 'ghost_backend'
+    const backendPath = path.join(resourcesPath, backendName)
+    if (!fs.existsSync(backendPath)) {
+      console.error('[ghost-writer] бинарник бэкенда не найден:', backendPath)
+      return
+    }
+    pythonChild = spawn(backendPath, [], {
+      cwd: resourcesPath,
+      env,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    pythonChild.stderr?.on('data', (buf) => {
+      process.stderr.write(`[python] ${buf}`)
+    })
+  } else {
+    const rootDir = projectRoot()
+    const mainPy = path.join(rootDir, 'main.py')
+    if (!fs.existsSync(mainPy)) {
+      console.error('[ghost-writer] main.py не найден:', mainPy)
+      return
+    }
+    const py = resolvePythonExe(rootDir)
+    pythonChild = spawn(py, [mainPy], {
+      cwd: rootDir,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    pythonChild.stdout?.on('data', (buf) => {
+      process.stdout.write(`[python] ${buf}`)
+    })
+    pythonChild.stderr?.on('data', (buf) => {
+      process.stderr.write(`[python] ${buf}`)
+    })
+  }
+
   pythonChild.on('exit', (code, signal) => {
     pythonChild = null
     console.warn('[ghost-writer] Python завершился', { code, signal })
@@ -508,5 +529,6 @@ app.on('before-quit', () => {
 })
 
 app.on('will-quit', () => {
+  killPythonChild()
   globalShortcut.unregisterAll()
 })

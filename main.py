@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from multiprocessing import Process
 from multiprocessing import Queue as mp_queue_factory
 from multiprocessing.queues import Queue as MPQueue
@@ -28,7 +29,11 @@ def main() -> None:
     """Запускает приложение и все подсистемы."""
     setup_logging()
 
-    root_dir = Path(__file__).resolve().parent
+    # В PyInstaller onefile каталог рядом с бинарником (например Contents/Resources в .app).
+    if getattr(sys, "frozen", False):
+        root_dir = Path(sys.executable).resolve().parent
+    else:
+        root_dir = Path(__file__).resolve().parent
     config_manager = ConfigManager(config_path=root_dir / "config" / "config.json")
     config = config_manager.config
     provider_factory = ProviderFactory(config_manager)

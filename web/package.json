@@ -9,6 +9,7 @@
     "dev": "npm start",
     "start:ui-only": "concurrently -k -n vite,electron -c blue,magenta \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env ELECTRON_DEV=1 GHOST_WRITER_UI_ONLY=1 electron .\"",
     "build": "tsc -b && vite build",
+    "build:app": "vite build && electron-builder --mac",
     "start:dist": "electron .",
     "lint": "eslint ."
   },
@@ -36,6 +37,36 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.0",
     "vite": "^8.0.4",
-    "wait-on": "^9.0.5"
+    "wait-on": "^9.0.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.ghostwriter.app",
+    "productName": "GhostWriter",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/ghost_backend",
+        "to": "ghost_backend"
+      },
+      {
+        "from": "../config",
+        "to": "config"
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.utilities"
+    }
   }
 }
