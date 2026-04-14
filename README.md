@@ -1,74 +1,115 @@
-# Ghost Writer
+# Ghost Writer (VoiceFlow WL)
 
-Desktop-приложение для голосового ввода: захват аудио, распознавание речи (локально или через OpenAI), опциональная LLM-обработка текста и вставка результата в активное поле ввода.
+Диктовка с глобальным хоткеем: запись с микрофона → STT (локальный **faster-whisper** или **OpenAI Whisper**) → опциональная постобработка через LLM → вставка текста в активное приложение. Есть режим **Python-only** (трей и плавающий индикатор) и режим **Electron + React** с единым UI.
 
-## Возможности
-
-- Глобальный хоткей для старта/остановки диктовки.
-- STT через `faster-whisper` (локально) или `openai/whisper-1`.
-- Опциональная постобработка текста через LLM (OpenAI).
-- Контекстные промпты для разных приложений (Slack, Mail, Cursor и т.д.).
-- Два UI-режима: системный tray (Python) или overlay-виджет (Electron + React).
-
-## Технологии
-
-- Backend: Python 3.10+, `sounddevice`, `pynput`, `pyperclip`, `openai`, `faster-whisper`.
-- UI (desktop shell): Electron.
-- UI (виджет): React + TypeScript + Vite.
+Подробнее о пайплайне и модулях: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Настройки и переменные окружения: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## Требования
 
-- macOS (основной целевой сценарий проекта).
-- Python 3.10+.
-- Node.js 18+ и npm (для запуска Electron UI).
-- API-ключ OpenAI для режимов, использующих OpenAI.
+- **macOS** (в репозитории есть зависимости под Darwin для доступности и ввода).
+- **Python 3.9+** (в проекте есть `.venv`; при необходимости создайте свой).
+- **Node.js** и **npm** (для папки `web`: Vite, Electron, скрипты запуска).
 
-## Быстрый старт (Python-only режим)
+## Быстрый старт
 
-1. Создайте виртуальное окружение:
-  - `python3 -m venv .venv`
-  - `source .venv/bin/activate`
-2. Установите зависимости:
-  - `pip install -r requirements.txt`
-3. Создайте `.env` из примера:
-  - `cp .env.example .env`
-4. Укажите `OPENAI_API_KEY` в `.env`.
-5. Проверьте настройки в `config/config.json`.
-6. Запустите приложение:
-  - `python main.py`
+1. Клонируйте репозиторий и перейдите в корень проекта.
 
-## Запуск через Electron (рекомендуемый UI)
+2. Python-зависимости:
 
-1. Подготовьте Python-зависимости, как в разделе выше.
-2. Установите зависимости Electron/React (из корня репозитория):
-  - `npm --prefix web install`
-3. Запустите единое приложение:
-  - `npm start`
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-Electron поднимет UI и автоматически запустит Python backend (`main.py`) в фоне.
+3. Секреты для OpenAI (если используете облачные STT/LLM). В корне создайте файл `.env`:
 
-## Тесты
+   ```bash
+   OPENAI_API_KEY=sk-...
+   ```
 
-- Запуск тестов:
-  - `pytest`
+4. Установите npm-зависимости **обязательно в `web/`** (иначе при `npm start` не найдётся `concurrently` и другие dev-утилиты):
 
-## Структура проекта
+   ```bash
+   npm --prefix web install
+   ```
 
-- `app/core` — оркестрация приложения, конфиг, интерфейсы, фабрика провайдеров.
-- `app/providers` — STT/LLM-провайдеры.
-- `app/platform` — платформенные адаптеры (хоткеи, фокус, вставка текста).
-- `app/ui` — Python UI-компоненты и статусы.
-- `web` — Electron + React UI.
-- `config/config.json` — основная runtime-конфигурация.
-- `config/user_glossary.json` — пользовательский словарь терминов.
+5. Запуск **Electron + Vite + Python backend** из корня:
 
-## Документация
+   ```bash
+   npm start
+   ```
 
-- Архитектура: `docs/ARCHITECTURE.md`
-- Конфигурация: `docs/CONFIGURATION.md`
+   Эквивалент: `npm --prefix web start`. Скрипты и переменные окружения для UI описаны в [web/README.md](web/README.md).
 
-## Важные заметки для macOS
+### Только Python (без Electron)
 
-- Нужно выдать Accessibility permissions приложению/терминалу для глобальных хоткеев и эмуляции ввода.
-- Для локальной транскрипции (`faster-whisper`) нужны дополнительные CPU/GPU ресурсы.
+```bash
+source .venv/bin/activate
+python main.py
+```
 
+Используется трей и при необходимости плавающий pill из Python. Конфиг: `config/config.json`.
+
+### Сборка фронта
+
+```bash
+npm --prefix web run build
+npm --prefix web run start:dist
+```
+
+## Структура репозитория
+
+| Путь | Назначение |
+|------|------------|
+| `main.py` | Точка входа Python: хоткей, аудио, провайдеры, вывод, трей. |
+| `app/` | Ядро, платформенный слой, провайдеры STT/LLM, UI-мост статусов. |
+| `config/` | `config.json`, пользовательский глоссарий и т.п. |
+| `web/` | Electron (main/preload), React UI, Vite. |
+| `tests/` | Pytest. |
+
+## Разработка и тесты
+
+```bash
+source .venv/bin/activate
+pytest
+```
+
+```bash
+npm --prefix web run lint
+```
+
+## Устранение неполадок
+
+### `sh: concurrently: command not found`
+
+Зависимости `web/` не установлены или установлены в другом каталоге. Выполните из корня проекта:
+
+```bash
+npm --prefix web install
+```
+
+Затем снова `npm start`.
+
+### `command not found: compdef` при входе в shell (OpenClaw)
+
+Сообщение относится к **`~/.openclaw/completions/openclaw.zsh`**: в конце файла вызывается `compdef`, которая доступна только после инициализации системы completions в Zsh.
+
+**Варианты:**
+
+- Убедитесь, что **до** `source` этого файла выполняется `compinit`, например в `~/.zshrc`:
+
+  ```bash
+  autoload -Uz compinit
+  compinit
+  ```
+
+  (часто это уже делает Oh My Zsh / Prezto; если completions отключены — включите их или перенесите `source` строки OpenClaw ниже блока с `compinit`).
+
+- Либо не подключайте сгенерированный completion-скрипт вручную, если вы не используете Zsh completions — используйте способ установки completions из документации OpenClaw для вашей оболочки.
+
+Это не ошибка самого Ghost Writer и на запуск приложения из этого репозитория не влияет.
+
+## Лицензия и вклад
+
+При добавлении лицензии или гайдлайнов для контрибьюторов дополните этот раздел в репозитории.
