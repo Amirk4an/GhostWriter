@@ -125,16 +125,16 @@ function spawnPythonBackend(port) {
   }
 
   if (app.isPackaged) {
-    const resourcesPath = process.resourcesPath
+    const backendDir = path.join(process.resourcesPath, 'ghost_backend')
     const backendName =
       process.platform === 'win32' ? 'ghost_backend.exe' : 'ghost_backend'
-    const backendPath = path.join(resourcesPath, backendName)
+    const backendPath = path.join(backendDir, backendName)
     if (!fs.existsSync(backendPath)) {
       console.error('[ghost-writer] бинарник бэкенда не найден:', backendPath)
       return
     }
     pythonChild = spawn(backendPath, [], {
-      cwd: resourcesPath,
+      cwd: backendDir,
       env,
       stdio: ['ignore', 'ignore', 'pipe'],
     })

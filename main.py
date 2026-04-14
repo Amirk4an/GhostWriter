@@ -29,7 +29,7 @@ def main() -> None:
     """Запускает приложение и все подсистемы."""
     setup_logging()
 
-    # В PyInstaller onefile каталог рядом с бинарником (например Contents/Resources в .app).
+    # В PyInstaller frozen: каталог рядом с бинарником (onedir в .app: Resources/ghost_backend/).
     if getattr(sys, "frozen", False):
         root_dir = Path(sys.executable).resolve().parent
     else:

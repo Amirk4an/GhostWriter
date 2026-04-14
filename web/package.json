@@ -58,7 +58,7 @@
       },
       {
         "from": "../config",
-        "to": "config"
+        "to": "ghost_backend/config"
       }
     ],
     "mac": {

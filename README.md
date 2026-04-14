@@ -60,7 +60,7 @@ npm --prefix web run start:dist
 
 ### Сборка macOS-приложения (.app)
 
-Сначала соберите бинарник Python в корневой каталог `dist/`, затем упакуйте Electron (артефакты — `web/release/`, в том числе `.app`, `.dmg` и `.zip`):
+Сначала соберите бэкенд PyInstaller (**onedir**): каталог `dist/ghost_backend/` с исполняемым файлом `ghost_backend`, затем упакуйте Electron (артефакты — `web/release/`, в том числе `.app`, `.dmg` и `.zip`):
 
 ```bash
 bash build_backend.sh
