@@ -1,0 +1,794 @@
+"""
+Главное окно-дашборд (CustomTkinter): боковое меню и вкладки Home / Dictionary / History / Settings.
+
+В дочернем процессе используется только ``ConfigManager`` (своя память, конфиг с диска).
+Никаких вызовов Tk/CustomTkinter на уровне модуля: импорт ``customtkinter`` и виджеты
+создаются только внутри ``MainDashboard.__init__`` после появления корневого ``CTk``.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.core.config_manager import ConfigManager
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _mask_secret(value: str | None, visible_tail: int = 4) -> str:
+    """Маскирует секрет для отображения (ключи только из окружения)."""
+    if not value:
+        return "не задан"
+    v = value.strip()
+    if len(v) <= visible_tail:
+        return "••••"
+    return "•" * max(8, len(v) - visible_tail) + v[-visible_tail:]
+
+
+class MainDashboard:
+    """
+    Собирает UI дашборда внутри переданного корня ``CTk``.
+
+    ``StringVar``, шрифты и прочие объекты Tk создаются только здесь, после того как
+    в процессе уже создан ``root = ctk.CTk()``.
+    """
+
+    def __init__(self, root: Any, config_manager: "ConfigManager") -> None:
+        if getattr(root, "_gw_dashboard_mounted", False):
+            return
+        root._gw_dashboard_mounted = True  # noqa: SLF001
+
+        import customtkinter as ctk
+
+        from app.platform.audio_devices import list_audio_input_devices, validate_audio_input_index
+        from app.ui.ctk_macos_theme import preferred_ui_font
+
+        cfg = config_manager.config
+        title_font = preferred_ui_font(18, "bold", master=root)
+        body_font = preferred_ui_font(13, master=root)
+        small_font = preferred_ui_font(11, master=root)
+
+        root.grid_columnconfigure(1, weight=1)
+        root.grid_rowconfigure(0, weight=1)
+
+        sidebar = ctk.CTkFrame(
+            root,
+            fg_color=("#2C2C2E", "#2C2C2E"),
+            corner_radius=0,
+            width=220,
+        )
+        sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar.grid_propagate(False)
+
+        brand = ctk.CTkLabel(
+            sidebar,
+            text=cfg.app_name,
+            font=title_font,
+            text_color=("#F2F2F7", "#F2F2F7"),
+        )
+        brand.pack(anchor="w", padx=18, pady=(24, 8))
+
+        main_area = ctk.CTkFrame(root, fg_color=("#1C1C1E", "#1C1C1E"), corner_radius=0)
+        main_area.grid(row=0, column=1, sticky="nsew")
+        main_area.grid_columnconfigure(0, weight=1)
+        main_area.grid_rowconfigure(0, weight=1)
+
+        pages: dict[str, ctk.CTkFrame] = {}
+        nav_buttons: list[ctk.CTkButton] = []
+        current_page: list[str] = ["home"]
+
+        from app.core.mic_meter_controller import DashboardMicMeter
+
+        mic_meter = DashboardMicMeter()
+        root._gw_mic_meter = mic_meter  # noqa: SLF001 — остановка при закрытии окна дашборда
+
+        home = ctk.CTkScrollableFrame(main_area, fg_color="transparent")
+        pages["home"] = home
+        home.grid_columnconfigure(0, weight=1)
+
+        from app.core.stats_manager import REFERENCE_EPIC_WORDS, StatsManager, default_stats_json_path
+
+        _stats_json_path = default_stats_json_path()
+
+        def _format_ru_int(n: int) -> str:
+            return f"{int(n):,}".replace(",", " ")
+
+        def _format_saved_time(sec: float) -> str:
+            s = max(0, int(round(sec)))
+            if s < 60:
+                return f"{s} с"
+            h, r = divmod(s, 3600)
+            m, se = divmod(r, 60)
+            parts: list[str] = []
+            if h:
+                parts.append(f"{h} ч")
+            if m or h:
+                parts.append(f"{m} мин")
+            parts.append(f"{se} с")
+            return " ".join(parts)
+
+        def _format_audio_minutes(sec: float) -> str:
+            if sec < 60:
+                return f"{sec:.1f} с"
+            return f"{sec / 60.0:.1f} мин"
+
+        def refresh_home_stats() -> None:
+            snap = StatsManager(_stats_json_path).load_snapshot()
+            home_saved_lbl.configure(text=_format_saved_time(snap.total_time_saved_seconds))
+            home_words_lbl.configure(text=_format_ru_int(snap.total_words))
+            home_chars_lbl.configure(text=_format_ru_int(snap.total_chars))
+            home_sessions_lbl.configure(text=_format_ru_int(snap.dictation_sessions))
+            home_days_lbl.configure(text=_format_ru_int(snap.active_days_count))
+            home_audio_lbl.configure(text=_format_audio_minutes(snap.total_audio_seconds))
+            home_llm_lbl.configure(text=_format_ru_int(snap.llm_runs))
+            epic = snap.total_words / float(REFERENCE_EPIC_WORDS) if REFERENCE_EPIC_WORDS else 0.0
+            if epic >= 0.05:
+                home_epic_lbl.configure(
+                    text=(
+                        f"≈ {epic:.1f} условного «тома» крупного романа "
+                        f"(~{REFERENCE_EPIC_WORDS // 1000} тыс. слов)"
+                    )
+                )
+            else:
+                home_epic_lbl.configure(text="")
+
+        def _stat_value_card(parent: Any, title: str, value_font: Any) -> tuple[Any, Any]:
+            card = ctk.CTkFrame(
+                parent,
+                fg_color=("#2C2C2E", "#2C2C2E"),
+                corner_radius=14,
+                border_width=1,
+                border_color=("#48484A", "#48484A"),
+            )
+            ctk.CTkLabel(card, text=title, font=small_font, text_color="#AEAEB2").pack(
+                anchor="w", padx=14, pady=(12, 4)
+            )
+            val = ctk.CTkLabel(card, text="—", font=value_font, text_color="#F2F2F7")
+            val.pack(anchor="w", padx=14, pady=(0, 12))
+            return card, val
+
+        section_font = preferred_ui_font(14, "bold", master=root)
+        hero_value_font = preferred_ui_font(22, "bold", master=root)
+        mid_value_font = preferred_ui_font(18, "bold", master=root)
+
+        ctk.CTkLabel(home, text="Ценность для вас", font=section_font, text_color="#F2F2F7").grid(
+            row=0, column=0, sticky="w", pady=(0, 8)
+        )
+        value_row = ctk.CTkFrame(home, fg_color="transparent")
+        value_row.grid(row=1, column=0, sticky="ew", pady=(0, 6))
+        value_row.grid_columnconfigure((0, 1, 2), weight=1, uniform="stat")
+
+        card_saved, home_saved_lbl = _stat_value_card(value_row, "Сэкономлено времени*", hero_value_font)
+        card_saved.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        card_words, home_words_lbl = _stat_value_card(value_row, "Слов надиктовано", mid_value_font)
+        card_words.grid(row=0, column=1, sticky="nsew", padx=6)
+        card_sess, home_sessions_lbl = _stat_value_card(value_row, "Сессий диктовки", mid_value_font)
+        card_sess.grid(row=0, column=2, sticky="nsew", padx=(6, 0))
+
+        home_epic_lbl = ctk.CTkLabel(
+            home,
+            text="",
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=900,
+            justify="left",
+        )
+        home_epic_lbl.grid(row=2, column=0, sticky="w", pady=(0, 4))
+        ctk.CTkLabel(
+            home,
+            text=(
+                "*Оценка: время набора при ~40 слов/мин минус длительность записи голоса. "
+                "Не учитывает правки после вставки."
+            ),
+            font=small_font,
+            text_color="#636366",
+            wraplength=900,
+            justify="left",
+        ).grid(row=3, column=0, sticky="w", pady=(0, 14))
+
+        ctk.CTkLabel(home, text="Активность", font=section_font, text_color="#F2F2F7").grid(
+            row=4, column=0, sticky="w", pady=(0, 8)
+        )
+        act_row = ctk.CTkFrame(home, fg_color="transparent")
+        act_row.grid(row=5, column=0, sticky="ew", pady=(0, 12))
+        act_row.grid_columnconfigure((0, 1), weight=1, uniform="act")
+        card_days, home_days_lbl = _stat_value_card(act_row, "Дней с диктовкой", mid_value_font)
+        card_days.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        card_chars, home_chars_lbl = _stat_value_card(act_row, "Символов всего", mid_value_font)
+        card_chars.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+
+        ctk.CTkLabel(home, text="Технический контроль", font=section_font, text_color="#F2F2F7").grid(
+            row=6, column=0, sticky="w", pady=(0, 8)
+        )
+        tech_row = ctk.CTkFrame(home, fg_color="transparent")
+        tech_row.grid(row=7, column=0, sticky="ew", pady=(0, 12))
+        tech_row.grid_columnconfigure((0, 1), weight=1, uniform="tech")
+        card_audio, home_audio_lbl = _stat_value_card(tech_row, "Аудио на STT (накопленно)", body_font)
+        card_audio.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        card_llm, home_llm_lbl = _stat_value_card(tech_row, "Проходов через LLM", body_font)
+        card_llm.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+
+        style_card = ctk.CTkFrame(
+            home,
+            fg_color=("#2C2C2E", "#2C2C2E"),
+            corner_radius=14,
+            border_width=1,
+            border_color=("#48484A", "#48484A"),
+        )
+        style_card.grid(row=8, column=0, sticky="ew", pady=(0, 12))
+        ctk.CTkLabel(style_card, text="Style", font=title_font, text_color="#F2F2F7").pack(
+            anchor="w", padx=16, pady=(14, 6)
+        )
+        ctk.CTkLabel(
+            style_card,
+            text="Настройка стиля написания появится здесь (заглушка).",
+            font=body_font,
+            text_color="#AEAEB2",
+            wraplength=640,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 14))
+
+        dictionary = ctk.CTkFrame(main_area, fg_color="transparent")
+        pages["dictionary"] = dictionary
+        ctk.CTkLabel(
+            dictionary,
+            text="Dictionary",
+            font=title_font,
+            text_color="#F2F2F7",
+        ).pack(anchor="w", pady=(0, 8))
+        ctk.CTkLabel(
+            dictionary,
+            text="Словарь и пользовательский глоссарий — в разработке.",
+            font=body_font,
+            text_color="#AEAEB2",
+            wraplength=700,
+            justify="left",
+        ).pack(anchor="w")
+
+        import pyperclip
+
+        from app.core.history_manager import HistoryManager, default_history_db_path
+
+        _history_db_path = default_history_db_path()
+        history_store_ui = HistoryManager(_history_db_path)
+        history_store_ui.init_schema()
+
+        history = ctk.CTkScrollableFrame(main_area, fg_color="transparent")
+        pages["history"] = history
+        history.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(history, text="История диктовок", font=title_font, text_color="#F2F2F7").grid(
+            row=0, column=0, sticky="w", pady=(0, 6)
+        )
+        ctk.CTkLabel(
+            history,
+            text=(
+                "Последние 50 записей. Данные только на этом компьютере (SQLite). "
+                f"Файл: {_history_db_path}"
+            ),
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=720,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(0, 12))
+
+        history_cards_host = ctk.CTkFrame(history, fg_color="transparent")
+        history_cards_host.grid(row=2, column=0, sticky="ew")
+
+        def _format_history_timestamp(iso_ts: str) -> str:
+            from datetime import date, datetime
+
+            try:
+                ts = datetime.fromisoformat(iso_ts)
+            except ValueError:
+                return iso_ts[:19]
+            local = ts.astimezone() if ts.tzinfo else ts
+            today = date.today()
+            if local.date() == today:
+                return f"Сегодня, {local.strftime('%H:%M')}"
+            if (today - local.date()).days == 1:
+                return f"Вчера, {local.strftime('%H:%M')}"
+            return local.strftime("%d.%m.%Y %H:%M")
+
+        def _copy_clipboard_safe(text: str) -> None:
+            try:
+                pyperclip.copy(text)
+            except Exception:
+                LOGGER.warning("Не удалось скопировать в буфер обмена", exc_info=True)
+
+        def refresh_history_ui() -> None:
+            if not root.winfo_exists():
+                return
+            for w in history_cards_host.winfo_children():
+                w.destroy()
+            try:
+                recs = history_store_ui.list_recent(50)
+            except Exception:
+                LOGGER.exception("Чтение истории диктовок")
+                recs = []
+            if not recs:
+                ctk.CTkLabel(
+                    history_cards_host,
+                    text="Пока нет записей. После успешной диктовки текст появится здесь.",
+                    font=body_font,
+                    text_color="#AEAEB2",
+                ).pack(anchor="w", pady=12)
+                return
+            for rec in recs:
+                card = ctk.CTkFrame(
+                    history_cards_host,
+                    fg_color=("#2C2C2E", "#2C2C2E"),
+                    corner_radius=12,
+                    border_width=1,
+                    border_color=("#48484A", "#48484A"),
+                )
+                card.pack(fill="x", pady=(0, 10), padx=2)
+                target = rec.target_app.strip() or "—"
+                head = f"{_format_history_timestamp(rec.created_at)}  ·  {target}"
+                ctk.CTkLabel(card, text=head, font=small_font, text_color="#8E8E93").pack(
+                    anchor="w", padx=12, pady=(10, 4)
+                )
+                body = rec.final_text or ""
+                preview = body if len(body) <= 520 else body[:520] + "…"
+                ctk.CTkLabel(
+                    card,
+                    text=preview,
+                    font=body_font,
+                    text_color="#E5E5EA",
+                    wraplength=700,
+                    justify="left",
+                ).pack(anchor="w", padx=12, pady=(0, 8))
+                btn_row = ctk.CTkFrame(card, fg_color="transparent")
+                btn_row.pack(fill="x", padx=8, pady=(0, 10))
+                ctk.CTkButton(
+                    btn_row,
+                    text="Копировать итог",
+                    width=150,
+                    height=32,
+                    font=body_font,
+                    fg_color=("#3A3A3C", "#3A3A3C"),
+                    command=lambda t=rec.final_text: _copy_clipboard_safe(t),
+                ).pack(side="left", padx=4)
+                ctk.CTkButton(
+                    btn_row,
+                    text="Копировать сырой",
+                    width=150,
+                    height=32,
+                    font=body_font,
+                    fg_color=("#3A3A3C", "#3A3A3C"),
+                    command=lambda t=rec.raw_text: _copy_clipboard_safe(t),
+                ).pack(side="left", padx=4)
+
+        settings = ctk.CTkScrollableFrame(main_area, fg_color="transparent")
+        pages["settings"] = settings
+        settings.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(settings, text="Settings", font=title_font, text_color="#F2F2F7").grid(
+            row=0, column=0, sticky="w", pady=(0, 12)
+        )
+
+        mic_card = ctk.CTkFrame(
+            settings,
+            fg_color=("#2C2C2E", "#2C2C2E"),
+            corner_radius=14,
+            border_width=1,
+            border_color=("#48484A", "#48484A"),
+        )
+        mic_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        mic_title_font = preferred_ui_font(15, "bold", master=root)
+        ctk.CTkLabel(mic_card, text="Микрофон", font=mic_title_font, text_color="#F2F2F7").pack(
+            anchor="w", padx=16, pady=(14, 6)
+        )
+
+        devices, _default_in = list_audio_input_devices()
+        labels: list[str] = ["По умолчанию (системный)"]
+        values: list[str | None] = [None]
+        for d in devices:
+            labels.append(f"{d['index']}: {d['name']}")
+            values.append(str(d["index"]))
+
+        def label_for_device_index() -> str:
+            cur = config_manager.config.audio_input_device
+            if cur is None:
+                return labels[0]
+            for lab, val in zip(labels, values):
+                if val is not None and int(val) == int(cur):
+                    return lab
+            return labels[0]
+
+        mic_var = ctk.StringVar(value=label_for_device_index())
+
+        def on_mic_pick(choice: str) -> None:
+            idx: int | None = None
+            for lab, val in zip(labels, values):
+                if lab == choice:
+                    idx = int(val) if val is not None else None
+                    break
+            if idx is not None:
+                try:
+                    validate_audio_input_index(idx)
+                except ValueError as err:
+                    LOGGER.warning("%s", err)
+                    return
+            try:
+                config_manager.patch_audio_input_device(idx)
+            except Exception:
+                LOGGER.exception("Не удалось записать микрофон в config.json")
+                return
+            restart_mic_meter_if_settings()
+
+        mic_menu = ctk.CTkOptionMenu(
+            mic_card,
+            values=labels,
+            variable=mic_var,
+            command=on_mic_pick,
+            font=body_font,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+            button_hover_color=("#5C5C5E", "#5C5C5E"),
+        )
+        mic_menu.pack(anchor="w", padx=16, pady=(0, 6))
+
+        ctk.CTkLabel(
+            mic_card,
+            text="Уровень сигнала (превью)",
+            font=small_font,
+            text_color="#AEAEB2",
+        ).pack(anchor="w", padx=16, pady=(4, 2))
+
+        mic_level_bar = ctk.CTkProgressBar(
+            mic_card,
+            width=280,
+            height=12,
+            corner_radius=6,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            progress_color=("#34C759", "#34C759"),
+        )
+        mic_level_bar.set(0.0)
+        mic_level_bar.pack(anchor="w", padx=16, pady=(0, 4))
+
+        mic_meter_status = ctk.CTkLabel(
+            mic_card,
+            text="",
+            font=small_font,
+            text_color="#FF9F0A",
+            wraplength=720,
+            justify="left",
+        )
+        mic_meter_status.pack(anchor="w", padx=16, pady=(0, 6))
+
+        _meter_ui_after: list[Any] = [None]
+
+        def _cancel_meter_ui_tick() -> None:
+            aid = _meter_ui_after[0]
+            if aid is not None:
+                try:
+                    root.after_cancel(aid)
+                except Exception:
+                    pass
+                _meter_ui_after[0] = None
+
+        def update_meter_ui() -> None:
+            _meter_ui_after[0] = None
+            if not root.winfo_exists():
+                return
+            if current_page[0] != "settings":
+                return
+            target = mic_meter.get_level()
+            try:
+                cur = float(mic_level_bar.get())
+            except Exception:
+                cur = 0.0
+            smoothed = cur + (target - cur) * 0.3
+            mic_level_bar.set(smoothed)
+            err = mic_meter.get_last_error()
+            if err:
+                mic_meter_status.configure(text=err, text_color="#FF9F0A")
+            else:
+                mic_meter_status.configure(text="", text_color="#8E8E93")
+            _meter_ui_after[0] = root.after(50, update_meter_ui)
+
+        def restart_mic_meter_if_settings() -> None:
+            if current_page[0] != "settings":
+                return
+            mic_meter.start_metering(device=config_manager.config.audio_input_device)
+
+        ctk.CTkLabel(
+            mic_card,
+            text=(
+                "Запись в основном приложении подхватит устройство после "
+                "«Reload configuration» в меню трея или перезапуска."
+            ),
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=720,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 14))
+
+        privacy_card = ctk.CTkFrame(
+            settings,
+            fg_color=("#2C2C2E", "#2C2C2E"),
+            corner_radius=14,
+            border_width=1,
+            border_color=("#48484A", "#48484A"),
+        )
+        privacy_card.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        privacy_title_font = preferred_ui_font(15, "bold", master=root)
+        ctk.CTkLabel(
+            privacy_card,
+            text="История и приватность",
+            font=privacy_title_font,
+            text_color="#F2F2F7",
+        ).pack(anchor="w", padx=16, pady=(14, 6))
+        ctk.CTkLabel(
+            privacy_card,
+            text="История хранится только локально. Отключите, если не хотите сохранять тексты на диск.",
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=720,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 8))
+
+        hist_sw = ctk.CTkSwitch(
+            privacy_card,
+            text="Сохранять историю диктовок",
+            font=body_font,
+            progress_color=("#34C759", "#34C759"),
+        )
+        if config_manager.config.enable_history:
+            hist_sw.select()
+        else:
+            hist_sw.deselect()
+        hist_sw.pack(anchor="w", padx=16, pady=(0, 10))
+
+        def on_hist_switch() -> None:
+            try:
+                config_manager.patch_enable_history(bool(hist_sw.get()))
+            except Exception:
+                LOGGER.exception("Не удалось записать enable_history в config.json")
+
+        hist_sw.configure(command=on_hist_switch)
+
+        def sync_history_switch() -> None:
+            if bool(hist_sw.get()) != bool(config_manager.config.enable_history):
+                if config_manager.config.enable_history:
+                    hist_sw.select()
+                else:
+                    hist_sw.deselect()
+
+        def on_clear_history() -> None:
+            try:
+                history_store_ui.clear_all()
+                refresh_history_ui()
+            except Exception:
+                LOGGER.exception("Очистка истории диктовок")
+
+        ctk.CTkButton(
+            privacy_card,
+            text="Очистить всю историю на этом Mac",
+            font=body_font,
+            height=34,
+            corner_radius=10,
+            fg_color=("#5C2C2C", "#5C2C2C"),
+            hover_color=("#7A3838", "#7A3838"),
+            command=on_clear_history,
+        ).pack(anchor="w", padx=16, pady=(0, 14))
+
+        api_card = ctk.CTkFrame(
+            settings,
+            fg_color=("#2C2C2E", "#2C2C2E"),
+            corner_radius=14,
+            border_width=1,
+            border_color=("#48484A", "#48484A"),
+        )
+        api_card.grid(row=3, column=0, sticky="ew", pady=(0, 12))
+        api_title_font = preferred_ui_font(15, "bold", master=root)
+        ctk.CTkLabel(api_card, text="API-ключи", font=api_title_font, text_color="#F2F2F7").pack(
+            anchor="w", padx=16, pady=(14, 6)
+        )
+        ctk.CTkLabel(
+            api_card,
+            text=(
+                "Ключ сохраняется в .env.secrets в каталоге поддержки приложения "
+                "(рядом со stats.json), не внутри .app и не в config.json. "
+                "Для разработки по-прежнему можно использовать локальный .env или переменные окружения."
+            ),
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=720,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 8))
+
+        secrets_path_lbl = ctk.CTkLabel(
+            api_card,
+            text=f"Файл: {config_manager.secrets_env_path()}",
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=720,
+            justify="left",
+        )
+        secrets_path_lbl.pack(anchor="w", padx=16, pady=(0, 6))
+
+        def _openai_masked_line() -> str:
+            v = config_manager.peek_secret("OPENAI_API_KEY")
+            return f"OPENAI_API_KEY: {_mask_secret(v)}"
+
+        openai_status_lbl = ctk.CTkLabel(
+            api_card,
+            text=_openai_masked_line(),
+            font=body_font,
+            text_color="#E5E5EA",
+        )
+        openai_status_lbl.pack(anchor="w", padx=16, pady=(0, 6))
+
+        api_input_row = ctk.CTkFrame(api_card, fg_color="transparent")
+        api_input_row.pack(fill="x", padx=16, pady=(0, 6))
+
+        api_entry = ctk.CTkEntry(
+            api_input_row,
+            show="*",
+            width=320,
+            placeholder_text="sk-… (новый ключ)",
+            font=body_font,
+        )
+        api_entry.pack(side="left", padx=(0, 10))
+
+        api_save_status = ctk.CTkLabel(api_card, text="", font=small_font, text_color="#34C759")
+        api_save_status.pack(anchor="w", padx=16, pady=(0, 10))
+
+        def sync_openai_key_display() -> None:
+            openai_status_lbl.configure(text=_openai_masked_line())
+            secrets_path_lbl.configure(text=f"Файл: {config_manager.secrets_env_path()}")
+
+        def on_save_openai_key() -> None:
+            raw = api_entry.get().strip()
+            try:
+                config_manager.set_secret("OPENAI_API_KEY", raw)
+                api_entry.delete(0, "end")
+                sync_openai_key_display()
+                if raw:
+                    api_save_status.configure(
+                        text="Сохранено. Основной процесс подхватит ключ при следующем запросе к API.",
+                        text_color="#34C759",
+                    )
+                else:
+                    api_save_status.configure(
+                        text="Ключ удалён из файла секретов (если был).",
+                        text_color="#8E8E93",
+                    )
+            except Exception as exc:
+                api_save_status.configure(text=f"Ошибка: {exc}", text_color="#FF453A")
+
+        ctk.CTkButton(
+            api_input_row,
+            text="Сохранить",
+            font=body_font,
+            width=110,
+            height=34,
+            corner_radius=10,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            command=on_save_openai_key,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            api_input_row,
+            text="Очистить поле",
+            font=body_font,
+            width=120,
+            height=34,
+            corner_radius=10,
+            fg_color=("#48484A", "#48484A"),
+            command=lambda: api_entry.delete(0, "end"),
+        ).pack(side="left")
+
+        reload_row = ctk.CTkFrame(settings, fg_color="transparent")
+        reload_row.grid(row=4, column=0, sticky="w", pady=12)
+
+        def reload_cfg() -> None:
+            try:
+                config_manager.reload()
+                mic_var.set(label_for_device_index())
+                sync_history_switch()
+                sync_openai_key_display()
+                restart_mic_meter_if_settings()
+                if current_page[0] == "history":
+                    refresh_history_ui()
+            except Exception:
+                LOGGER.exception("reload из дашборда")
+
+        ctk.CTkButton(
+            reload_row,
+            text="Перечитать config.json с диска",
+            font=body_font,
+            height=34,
+            corner_radius=10,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            command=reload_cfg,
+        ).pack(side="left", padx=(0, 8))
+
+        def show_page(name: str) -> None:
+            prev = current_page[0]
+            if prev == "settings" and name != "settings":
+                _cancel_meter_ui_tick()
+                mic_meter.stop_metering()
+            current_page[0] = name
+            for p in pages.values():
+                p.grid_remove()
+            pages[name].grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+            for b in nav_buttons:
+                b.configure(fg_color="transparent")
+            idx = {"home": 0, "dictionary": 1, "history": 2, "settings": 3}[name]
+            nav_buttons[idx].configure(fg_color=("#3A3A3C", "#3A3A3C"))
+            if name == "settings":
+                restart_mic_meter_if_settings()
+                update_meter_ui()
+            if name == "home":
+                refresh_home_stats()
+            if name == "history":
+                refresh_history_ui()
+
+        def nav_cmd(key: str) -> Any:
+            return lambda: show_page(key)
+
+        b_home = ctk.CTkButton(
+            sidebar,
+            text="Home",
+            font=body_font,
+            anchor="w",
+            height=40,
+            fg_color="transparent",
+            command=nav_cmd("home"),
+        )
+        b_home.pack(fill="x", padx=10, pady=4)
+        nav_buttons.append(b_home)
+
+        b_dict = ctk.CTkButton(
+            sidebar,
+            text="Dictionary",
+            font=body_font,
+            anchor="w",
+            height=40,
+            fg_color="transparent",
+            command=nav_cmd("dictionary"),
+        )
+        b_dict.pack(fill="x", padx=10, pady=4)
+        nav_buttons.append(b_dict)
+
+        b_hist = ctk.CTkButton(
+            sidebar,
+            text="История",
+            font=body_font,
+            anchor="w",
+            height=40,
+            fg_color="transparent",
+            command=nav_cmd("history"),
+        )
+        b_hist.pack(fill="x", padx=10, pady=4)
+        nav_buttons.append(b_hist)
+
+        b_set = ctk.CTkButton(
+            sidebar,
+            text="Settings",
+            font=body_font,
+            anchor="w",
+            height=40,
+            fg_color="transparent",
+            command=nav_cmd("settings"),
+        )
+        b_set.pack(fill="x", padx=10, pady=4)
+        nav_buttons.append(b_set)
+
+        show_page("home")
+
+
+def mount_main_dashboard(root: Any, config_manager: "ConfigManager") -> None:
+    """
+    Совместимая обёртка: монтирует дашборд в корневое окно.
+
+    Args:
+        root: Уже созданный ``ctk.CTk()``.
+        config_manager: Менеджер конфигурации процесса дашборда.
+    """
+    MainDashboard(root, config_manager)

@@ -3,43 +3,82 @@
 from __future__ import annotations
 
 import io
-import json
-import os
-from collections.abc import Callable
-from typing import Any
+import logging
+import sys
+from pathlib import Path
+from typing import Any, Callable
 
 import numpy as np
 from faster_whisper import WhisperModel
 from scipy.io.wavfile import read as wav_read
 
+from app.core.config_manager import AppConfig
 from app.core.interfaces import TranscriptionProvider
 
+LOGGER = logging.getLogger(__name__)
 
-def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
-    """Пишет NDJSON-лог отладки без секретов."""
-    try:
-        _log_path = "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log"
-        os.makedirs(os.path.dirname(_log_path), exist_ok=True)
-        payload: dict[str, object] = {
-            "sessionId": "edce00",
-            "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(__import__("time").time() * 1000),
-        }
-        with open(_log_path, "a", encoding="utf-8") as log_file:
-            log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except OSError:
-        pass
+
+def resolve_faster_whisper_model_path(app_config: AppConfig) -> str:
+    """
+    Определяет аргумент ``model_size_or_path`` для ``WhisperModel`` с учётом PyInstaller.
+
+    Args:
+        app_config: Конфигурация приложения (поля ``local_whisper_*``, ``stt_local``).
+
+    Returns:
+        Идентификатор модели для HF-кэша либо абсолютный путь к каталогу весов.
+    """
+    model_id = str(app_config.local_whisper_model or "").strip()
+    if not model_id:
+        raise RuntimeError("local_whisper_model в конфиге не задан")
+
+    source = app_config.local_whisper_model_source
+    if source == "cache":
+        return model_id
+
+    if source == "custom_path":
+        resolved = Path(app_config.local_whisper_custom_path).expanduser().resolve()
+        if not resolved.is_dir():
+            raise FileNotFoundError(f"Каталог модели (custom_path) не найден: {resolved}")
+        return str(resolved)
+
+    # bundle
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        base = Path(sys._MEIPASS)
+    else:
+        base = Path(__file__).resolve().parents[2]
+    bundle_path = (base / "assets" / "models" / model_id).resolve()
+    if not bundle_path.is_dir():
+        raise FileNotFoundError(
+            f"Модель в бандле не найдена: {bundle_path}. "
+            f"Положите веса в assets/models/{model_id}/ или задайте stt_local.model_source: cache."
+        )
+    return str(bundle_path)
 
 
 class FasterWhisperProvider(TranscriptionProvider):
     """Транскрибирует аудио локальной моделью Faster-Whisper."""
 
-    def __init__(self, model_name: str, device: str = "cpu", compute_type: str = "int8") -> None:
-        self._model = WhisperModel(model_name, device=device, compute_type=compute_type)
+    def __init__(self, app_config: AppConfig) -> None:
+        """
+        Args:
+            app_config: Конфигурация с параметрами ``stt_local`` и ``local_whisper_model``.
+        """
+        model_path = resolve_faster_whisper_model_path(app_config)
+        device = app_config.local_whisper_device
+        compute_type = app_config.local_whisper_compute_type
+        LOGGER.info(
+            "Инициализация WhisperModel: path=%r device=%s compute_type=%s",
+            model_path,
+            device,
+            compute_type,
+        )
+        self._model = WhisperModel(
+            model_path,
+            device=device,
+            compute_type=compute_type,
+        )
+        LOGGER.info("WhisperModel загружена в память.")
 
     def transcribe(
         self,
@@ -57,20 +96,9 @@ class FasterWhisperProvider(TranscriptionProvider):
         audio = self._to_float32(pcm)
         peak = float(np.max(np.abs(audio))) if audio.size else 0.0
         rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
-        # region agent log
-        _agent_debug_log(
-            "H19",
-            "faster_whisper_provider.py:transcribe:input",
-            "stt input stats",
-            {
-                "audio_len": int(audio.shape[0]) if hasattr(audio, "shape") else 0,
-                "wav_sample_rate": int(local_sample_rate),
-                "peak": peak,
-                "rms": rms,
-                "language": language or "",
-            },
-        )
-        # endregion
+        if audio.size == 0 or (peak == 0.0 and rms == 0.0):
+            return ""
+
         segments, _info = self._model.transcribe(
             audio=audio,
             language=language,

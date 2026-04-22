@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv, set_key, unset_key
 
 
 @dataclass
@@ -46,6 +47,28 @@ class AppConfig:
     )
     streaming_stt_enabled: bool = False
     whisper_mode_boost_input: bool = False
+    # Локальный faster-whisper: источник весов и параметры CTranslate2 (см. ``stt_local`` в JSON).
+    local_whisper_model_source: str = "cache"
+    local_whisper_custom_path: str = ""
+    local_whisper_device: str = "cpu"
+    local_whisper_compute_type: str = "int8"
+    enable_history: bool = True
+
+
+SECRETS_FILE_NAME = ".env.secrets"
+
+
+def default_secrets_env_path(*, support_subdir: str = "GhostWriter") -> Path:
+    """
+    Путь к изменяемому файлу секретов (рядом со ``stats.json`` / ``history.db``).
+
+    На macOS: ``~/Library/Application Support/<subdir>/.env.secrets``.
+    Иначе: ``~/.<subdir_lower>/.env.secrets``.
+    """
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / support_subdir / SECRETS_FILE_NAME
+    safe = support_subdir.strip().lower().replace(" ", "_") or "ghostwriter"
+    return Path.home() / f".{safe}" / SECRETS_FILE_NAME
 
 
 class ConfigManager:
@@ -96,12 +119,72 @@ class ConfigManager:
             self._config = self._validate(raw_data)
             return self._config
 
+    def patch_enable_history(self, enabled: bool) -> AppConfig:
+        """Записывает ``enable_history`` в ``config.json`` (история диктовок в SQLite)."""
+        with self._lock:
+            raw_data = self._read_json()
+            raw_data["enable_history"] = bool(enabled)
+            self._write_json(raw_data)
+            self._config = self._validate(raw_data)
+            return self._config
+
+    def secrets_env_path(self) -> Path:
+        """Файл ``.env.secrets`` в каталоге поддержки приложения (доступен на запись вне бандла .app)."""
+        return default_secrets_env_path()
+
+    def _local_dotenv_candidates(self) -> list[Path]:
+        """Пути ``.env`` для разработки: рядом с ``config.json``, затем текущий каталог."""
+        return [self._config_path.parent / ".env", Path.cwd() / ".env"]
+
+    def _read_secret_layered(self, key: str) -> str | None:
+        """Читает секрет: пользовательский файл → локальный ``.env`` → ``os.environ``."""
+        user_path = self.secrets_env_path()
+        if user_path.is_file():
+            raw = dotenv_values(user_path).get(key)
+            if raw is not None and str(raw).strip():
+                return str(raw).strip()
+        for candidate in self._local_dotenv_candidates():
+            if candidate.is_file():
+                raw = dotenv_values(candidate).get(key)
+                if raw is not None and str(raw).strip():
+                    return str(raw).strip()
+        v = os.getenv(key)
+        if v is not None and str(v).strip():
+            return str(v).strip()
+        return None
+
+    def peek_secret(self, key: str) -> str | None:
+        """Возвращает секрет без исключения (для UI и проверок)."""
+        return self._read_secret_layered(key)
+
     def get_secret(self, key: str) -> str:
-        """Возвращает секрет из переменных окружения."""
-        value = os.getenv(key)
+        """Возвращает секрет (каждый раз с диска / окружения — актуально после записи из дашборда)."""
+        value = self._read_secret_layered(key)
         if not value:
-            raise RuntimeError(f"Не найден секрет '{key}' в окружении")
+            raise RuntimeError(
+                f"Не найден секрет '{key}'. Задайте его в настройках дашборда, в файле "
+                f"{self.secrets_env_path()}, в локальном .env или в переменных окружения."
+            )
         return value
+
+    def set_secret(self, key: str, value: str) -> None:
+        """Сохраняет секрет в пользовательский ``.env.secrets`` (не внутри бандла PyInstaller)."""
+        path = self.secrets_env_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path_str = str(path)
+        existed = path.is_file()
+        if value.strip():
+            set_key(path_str, key, value.strip())
+            if not existed:
+                try:
+                    path.chmod(0o600)
+                except OSError:
+                    pass
+            os.environ[key] = value.strip()
+        else:
+            if path.is_file():
+                unset_key(path_str, key)
+            os.environ.pop(key, None)
 
     def _read_json(self) -> dict[str, Any]:
         try:
@@ -119,6 +202,28 @@ class ConfigManager:
         with tmp_path.open("w", encoding="utf-8") as file:
             file.write(payload)
         tmp_path.replace(self._config_path)
+
+    def _parse_stt_local(self, raw: dict[str, Any]) -> tuple[str, str, str, str]:
+        """
+        Читает опциональный блок ``stt_local`` для локального faster-whisper.
+
+        Returns:
+            Кортеж ``(model_source, custom_model_path, device, compute_type)``.
+        """
+        block = raw.get("stt_local")
+        if not isinstance(block, dict):
+            return ("cache", "", "cpu", "int8")
+        source = str(block.get("model_source", "cache") or "cache").strip().lower()
+        if source not in ("cache", "bundle", "custom_path"):
+            raise RuntimeError(
+                f"stt_local.model_source: ожидается cache, bundle или custom_path, получено {source!r}"
+            )
+        custom = str(block.get("custom_model_path", "") or "").strip()
+        if source == "custom_path" and not custom:
+            raise RuntimeError("stt_local.custom_model_path обязателен при model_source=custom_path")
+        device = str(block.get("device", "cpu") or "cpu").strip()
+        compute_type = str(block.get("compute_type", "int8") or "int8").strip()
+        return (source, custom, device, compute_type)
 
     def _parse_language(self, raw: dict[str, Any]) -> str | None:
         if "language" not in raw:
@@ -164,6 +269,8 @@ class ConfigManager:
             raise RuntimeError("app_context_prompts должен быть объектом JSON")
         context_prompts = {str(k): str(v) for k, v in ctx.items()}
 
+        lw_source, lw_custom, lw_device, lw_compute = self._parse_stt_local(raw)
+
         return AppConfig(
             app_name=str(raw["app_name"]),
             primary_color=str(raw["primary_color"]),
@@ -197,4 +304,9 @@ class ConfigManager:
             ),
             streaming_stt_enabled=bool(raw.get("streaming_stt_enabled", False)),
             whisper_mode_boost_input=bool(raw.get("whisper_mode_boost_input", False)),
+            local_whisper_model_source=lw_source,
+            local_whisper_custom_path=lw_custom,
+            local_whisper_device=lw_device,
+            local_whisper_compute_type=lw_compute,
+            enable_history=bool(raw.get("enable_history", True)),
         )

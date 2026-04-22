@@ -1,0 +1,6 @@
+{"sessionId": "f0710e", "hypothesisId": "H1", "message": "mp_pill_branch_appkit", "data": {}, "timestamp": 1776086402902}
+{"sessionId": "f0710e", "hypothesisId": "H1", "message": "native_pill_entry", "data": {"app_name": "VoiceFlow WL"}, "timestamp": 1776086402904}
+{"sessionId": "f0710e", "hypothesisId": "H2", "message": "activation_policy_set", "data": {"ok": false, "policy": "Regular"}, "timestamp": 1776086402936}
+{"sessionId": "f0710e", "hypothesisId": "H3", "message": "visible_frame", "data": {"x": 0.0, "y": 90.0, "w": 2560.0, "h": 1320.0}, "timestamp": 1776086402936}
+{"sessionId": "f0710e", "hypothesisId": "H5", "message": "order_front", "data": {"method": "panel.orderFront_", "fallback_reason": "No attribute orderFrontRegardless_"}, "timestamp": 1776086402969}
+{"sessionId": "f0710e", "hypothesisId": "H4", "message": "panel_after_order_front", "data": {"frame": [1140.0, 138.0, 280.0, 38.0], "visible": true}, "timestamp": 1776086402971}

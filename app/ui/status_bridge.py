@@ -28,7 +28,7 @@ class StatusBridge:
         self._on_broadcast = on_broadcast
 
     def set_on_broadcast(self, on_broadcast: Callable[[str, str | None], None] | None) -> None:
-        """Подключает или меняет обработчик рассылки статуса (например, после создания StatusPushClient)."""
+        """Подключает или меняет обработчик рассылки статуса (опционально, для расширений)."""
         self._on_broadcast = on_broadcast
 
     def set_status(self, status: str, detail: str | None = None) -> None:

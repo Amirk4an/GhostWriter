@@ -16,12 +16,11 @@ class ProviderFactory:
         if config.whisper_backend == "local":
             from app.providers.faster_whisper_provider import FasterWhisperProvider
 
-            return FasterWhisperProvider(model_name=config.local_whisper_model)
+            return FasterWhisperProvider(app_config=config)
         if config.whisper_backend == "openai":
             from app.providers.openai_whisper_provider import OpenAIWhisperProvider
 
-            api_key = self._config_manager.get_secret("OPENAI_API_KEY")
-            return OpenAIWhisperProvider(api_key=api_key, model_name=config.whisper_model)
+            return OpenAIWhisperProvider(config_manager=self._config_manager, model_name=config.whisper_model)
         raise RuntimeError(f"Неподдерживаемый whisper_backend: {config.whisper_backend}")
 
     def create_llm_provider(self, config: AppConfig) -> LLMProvider | None:
@@ -30,6 +29,5 @@ class ProviderFactory:
         if config.model_provider == "openai":
             from app.providers.openai_llm_provider import OpenAILLMProvider
 
-            api_key = self._config_manager.get_secret("OPENAI_API_KEY")
-            return OpenAILLMProvider(api_key=api_key, model_name=config.llm_model)
+            return OpenAILLMProvider(config_manager=self._config_manager, model_name=config.llm_model)
         raise RuntimeError(f"Неподдерживаемый model_provider: {config.model_provider}")

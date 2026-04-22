@@ -17,6 +17,7 @@ from pynput.keyboard import Key, KeyCode, Listener
 
 from app.core.hotkey_spec import MOD_FAMILIES, HotkeySpec, parse_hotkey_spec, token_to_pynput_key
 from app.core.interfaces import HotkeyListener
+from app.platform.macos_accessibility import macos_accessibility_is_trusted
 
 if TYPE_CHECKING:
     pass
@@ -27,10 +28,10 @@ LOGGER = logging.getLogger(__name__)
 def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
     """Пишет NDJSON-лог отладки без секретов."""
     try:
-        _log_path = "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log"
+        _log_path = "/Users/krasikov/projects/ghostwriter/.cursor/debug-ee7e85.log"
         Path(_log_path).parent.mkdir(parents=True, exist_ok=True)
         payload: dict[str, object] = {
-            "sessionId": "edce00",
+            "sessionId": "ee7e85",
             "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
             "hypothesisId": hypothesis_id,
             "location": location,
@@ -59,24 +60,6 @@ def _key_in_mod_family(key: object, mod_name: str) -> bool:
     if not fam:
         return False
     return key in fam
-
-
-def _macos_ax_is_trusted(prompt_user: bool = False) -> bool | None:
-    """Проверяет права Accessibility; при prompt_user=True просит систему показать диалог доступа."""
-    try:
-        if os.name != "posix":
-            return None
-        from ApplicationServices import (  # type: ignore
-            AXIsProcessTrusted,
-            AXIsProcessTrustedWithOptions,
-            kAXTrustedCheckOptionPrompt,
-        )
-
-        if prompt_user:
-            return bool(AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True}))
-        return bool(AXIsProcessTrusted())
-    except Exception:
-        return None
 
 
 class PynputHotkeyListener(HotkeyListener):
@@ -146,9 +129,9 @@ class PynputHotkeyListener(HotkeyListener):
             "H15",
             "hotkey_listener.py:start:ax",
             "macOS accessibility trust status",
-            {"ax_trusted": _macos_ax_is_trusted(), "pid": os.getpid(), "executable": sys.executable},
+            {"ax_trusted": macos_accessibility_is_trusted(), "pid": os.getpid(), "executable": sys.executable},
         )
-        ax_trusted = _macos_ax_is_trusted()
+        ax_trusted = macos_accessibility_is_trusted()
         if ax_trusted is False:
             _agent_debug_log(
                 "H15",
@@ -156,7 +139,7 @@ class PynputHotkeyListener(HotkeyListener):
                 "requesting macOS accessibility prompt",
                 {"pid": os.getpid(), "executable": sys.executable},
             )
-            _macos_ax_is_trusted(prompt_user=True)
+            macos_accessibility_is_trusted(prompt_user=True)
             try:
                 # Открываем нужный раздел настроек, чтобы пользователь сразу выдал доступ правильному бинарнику.
                 subprocess.run(
@@ -170,12 +153,13 @@ class PynputHotkeyListener(HotkeyListener):
                 "H15",
                 "hotkey_listener.py:start:ax_after_prompt",
                 "macOS accessibility trust status after prompt",
-                {"ax_trusted": _macos_ax_is_trusted(), "pid": os.getpid(), "executable": sys.executable},
+                {"ax_trusted": macos_accessibility_is_trusted(), "pid": os.getpid(), "executable": sys.executable},
             )
             LOGGER.warning(
-                "Нет разрешения Accessibility для backend-процесса (ghost_backend). "
-                "Системные настройки → Конфиденциальность и безопасность → Универсальный доступ: "
-                "добавьте/включите именно исполняемый файл ghost_backend из .app (см. лог executable=…)."
+                "Нет доверия Accessibility для этого процесса (глобальный перехват клавиш через pynput). "
+                "Системные настройки → Конфиденциальность и безопасность: включите "
+                "«Универсальный доступ» и при необходимости «Мониторинг ввода» для приложения, "
+                "которым вы запускаете Ghost Writer (например Terminal или Python; исполняемый файл см. в логе executable=…)."
             )
         # endregion
 

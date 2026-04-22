@@ -3,319 +3,320 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
-import tkinter as tk
+from collections.abc import Callable
 from multiprocessing.queues import Queue as MPQueue
 from queue import Empty
+from typing import TYPE_CHECKING, Any
 
-import customtkinter as ctk
-
-from app.ui.status_bridge import StatusBridge
+if TYPE_CHECKING:
+    from app.ui.status_bridge import StatusBridge
 
 LOGGER = logging.getLogger(__name__)
 
+PILL_BLACK = "#000000"
+PILL_BORDER = "#FFFFFF"
+PILL_CORNER = 22
+
 
 def _status_label(status: str) -> str:
+    """Подпись статуса для pill (англ.)."""
     if status == "Recording":
-        return "● Запись"
+        return "Recording..."
     if status == "Processing":
-        return "⏳ Обработка"
+        return "Processing..."
     if status == "Error":
-        return "✕ Ошибка"
-    return "— Готов"
+        return "Error"
+    return "Ready"
 
 
-def run_floating_pill_loop(
+def _ctk_pill_main_loop(
     *,
-    status_bridge: StatusBridge,
-    app_name: str,
-    primary_color: str,
-    poll_ms: int = 100,
+    _app_name: str,
+    _primary_color: str,
+    poll_ms: int,
+    drain_queue: Callable[[], None],
+    get_status: Callable[[], tuple[str, Any]],
+    command_queue: MPQueue | None = None,
 ) -> None:
-    """Блокирующий цикл CustomTkinter в отдельном потоке (как окно настроек)."""
-    ctk.set_appearance_mode("System")
-    ctk.set_default_color_theme("blue")
+    """
+    Общий цикл CustomTkinter для pill: чёрный фон, белая обводка, режимы Ready / Recording / прочее.
+
+    Args:
+        _app_name: Имя приложения (резерв для будущих подписей).
+        _primary_color: Акцент из конфига (резерв).
+        poll_ms: Интервал опроса состояния (мс).
+        drain_queue: В начале каждого тика опустошает внешнюю очередь (для MP) или no-op.
+        get_status: Возвращает пару (код статуса, detail).
+        command_queue: Очередь команд в основной процесс (например открытие дашборда); если ``None``, кнопка не показывается.
+    """
+    import tkinter as tk
+
+    import customtkinter as ctk
+
+    from app.platform.macos_ctk_dock import bring_app_to_front, hide_dock_icon_for_ctk_root
+    from app.ui.ctk_macos_theme import apply_ctk_macos_dark_theme, preferred_ui_font
+    from app.ui.pill_ipc import open_dashboard_message
 
     root = ctk.CTk()
     root.withdraw()
+    apply_ctk_macos_dark_theme()
+    hide_dock_icon_for_ctk_root()
+    try:
+        root.attributes("-topmost", True)
+    except tk.TclError:
+        LOGGER.debug("pill root: -topmost не поддерживается")
+    bring_app_to_front()
 
     pill = ctk.CTkToplevel(root)
     pill.title("")
     pill.overrideredirect(True)
     pill.attributes("-topmost", True)
     try:
-        pill.attributes("-alpha", 0.92)
+        pill.attributes("-alpha", 1.0)
     except tk.TclError:
         LOGGER.debug("alpha не поддерживается для Toplevel")
 
-    pill.configure(fg_color=("#1a1a1e", "#1a1a1e"))
+    pill.configure(fg_color=PILL_BLACK)
     pill.resizable(False, False)
 
-    width_collapsed, height_pill = 140, 36
-    pill.geometry(f"{width_collapsed}x{height_pill}")
-
-    def place_at_bottom() -> None:
-        pill.update_idletasks()
-        sw = pill.winfo_screenwidth()
-        sh = pill.winfo_screenheight()
-        w = pill.winfo_width()
-        h = pill.winfo_height()
-        x = max(0, (sw - w) // 2)
-        y = max(0, sh - h - 48)
-        pill.geometry(f"+{x}+{y}")
-
-    frame = ctk.CTkFrame(pill, fg_color="transparent", corner_radius=18)
-    frame.pack(fill="both", expand=True, padx=2, pady=2)
-
-    title = ctk.CTkLabel(
-        frame,
-        text=app_name[:18],
-        font=("Arial", 10, "bold"),
-        text_color=primary_color,
+    shell = ctk.CTkFrame(
+        pill,
+        fg_color=PILL_BLACK,
+        corner_radius=PILL_CORNER,
+        border_width=2,
+        border_color=PILL_BORDER,
     )
-    title.pack(side="left", padx=(10, 4))
+    shell.pack(fill="both", expand=True, padx=0, pady=0)
 
-    state_lbl = ctk.CTkLabel(frame, text=_status_label("Idle"), font=("Arial", 11))
-    state_lbl.pack(side="left", padx=(0, 10))
+    def _send_open_dashboard() -> None:
+        if command_queue is None:
+            return
+        bring_app_to_front()
+        try:
+            command_queue.put_nowait(open_dashboard_message())
+        except Exception as err:
+            LOGGER.warning("Команда pill не отправлена: %s", err)
 
-    detail_frame = ctk.CTkFrame(pill, fg_color="transparent")
-    detail_lbl = ctk.CTkLabel(
-        detail_frame,
+    body = ctk.CTkFrame(shell, fg_color="transparent")
+    body.pack(side="left", fill="both", expand=True, padx=(8, 4), pady=8)
+
+    if command_queue is not None:
+        gear_col = ctk.CTkFrame(shell, fg_color="transparent", width=36)
+        gear_btn = ctk.CTkButton(
+            gear_col,
+            text="⚙",
+            width=28,
+            height=28,
+            font=preferred_ui_font(14, master=root),
+            fg_color=("#2C2C2E", "#2C2C2E"),
+            hover_color=("#3D3D40", "#3D3D40"),
+            border_width=1,
+            border_color=("#48484A", "#48484A"),
+            corner_radius=8,
+            command=_send_open_dashboard,
+        )
+        gear_btn.pack(pady=8, padx=(2, 6))
+        gear_col.pack(side="right", fill="y")
+
+    gear_extra = 36 if command_queue is not None else 0
+
+    ready_row = ctk.CTkFrame(body, fg_color="transparent")
+    ready_txt = ctk.CTkLabel(
+        ready_row,
+        text="Ready",
+        font=preferred_ui_font(13, "bold", master=root),
+        text_color="#FFFFFF",
+        anchor="center",
+    )
+    ready_txt.pack(fill="both", expand=True)
+
+    rec_row = ctk.CTkFrame(body, fg_color="transparent")
+    pulse_canvas = tk.Canvas(
+        rec_row,
+        width=40,
+        height=40,
+        highlightthickness=0,
+        bg=PILL_BLACK,
+        bd=0,
+    )
+    pulse_canvas.pack(side="left", padx=(0, 8))
+    rec_txt = ctk.CTkLabel(
+        rec_row,
+        text="Recording...",
+        font=preferred_ui_font(13, "bold", master=root),
+        text_color="#FFFFFF",
+    )
+    rec_txt.pack(side="left")
+
+    other_row = ctk.CTkFrame(body, fg_color="transparent")
+    other_txt = ctk.CTkLabel(
+        other_row,
         text="",
-        font=("Arial", 10),
-        text_color="#aaaaaa",
-        wraplength=360,
+        font=preferred_ui_font(13, "bold", master=root),
+        text_color="#FFFFFF",
+    )
+    other_txt.pack(side="left")
+
+    detail_wrap = ctk.CTkFrame(shell, fg_color="transparent")
+    detail_lbl = ctk.CTkLabel(
+        detail_wrap,
+        text="",
+        font=preferred_ui_font(10, master=root),
+        text_color="#D1D1D6",
+        wraplength=340,
         justify="left",
     )
     detail_lbl.pack(anchor="w", padx=12, pady=(0, 8))
 
-    expanded = {"value": False}
-    prev_poll_status: list[str | None] = [None]
+    phase_holder: list[float] = [0.0]
+    width_collapsed = 96 + gear_extra
+    height_pill = 44
 
-    def set_collapsed_size() -> None:
-        pill.geometry(f"{width_collapsed}x{height_pill}")
-        place_at_bottom()
+    def place_at_bottom(w: int, h: int) -> None:
+        pill.update_idletasks()
+        sw = pill.winfo_screenwidth()
+        sh = pill.winfo_screenheight()
+        x = max(0, (sw - w) // 2)
+        y = max(0, sh - h - 48)
+        pill.geometry(f"{w}x{h}+{x}+{y}")
 
-    def expand_ui() -> None:
-        if expanded["value"]:
-            return
-        expanded["value"] = True
-        detail_frame.pack(fill="x", expand=True)
-        pill.geometry("400x96")
-        place_at_bottom()
+    def draw_pulse() -> None:
+        pulse_canvas.delete("all")
+        phase_holder[0] += 0.42
+        t = phase_holder[0]
+        cx, cy = 20, 20
+        r = 10.0 + 5.0 * math.sin(t)
+        pulse_canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill="#834CF5", outline="")
+        pulse_canvas.create_oval(cx - 4, cy - 4, cx + 4, cy + 4, fill="#FF3B30", outline="")
 
-    def collapse_ui() -> None:
-        if not expanded["value"]:
-            return
-        expanded["value"] = False
-        detail_frame.pack_forget()
-        set_collapsed_size()
+    def show_ready() -> None:
+        ready_row.pack(fill="both", expand=True)
+        rec_row.pack_forget()
+        other_row.pack_forget()
+        detail_wrap.pack_forget()
 
-    def on_enter(_event: object | None = None) -> None:
-        del _event
-        expand_ui()
+    def show_recording() -> None:
+        ready_row.pack_forget()
+        rec_row.pack(fill="x", expand=True)
+        other_row.pack_forget()
+        draw_pulse()
+        detail_wrap.pack_forget()
 
-    def on_leave(_event: object | None = None) -> None:
-        del _event
-        st, _ = status_bridge.snapshot()
-        if st not in ("Recording", "Processing"):
-            collapse_ui()
-
-    pill.bind("<Enter>", on_enter)
-    pill.bind("<Leave>", on_leave)
-    frame.bind("<Enter>", on_enter)
-    frame.bind("<Leave>", on_leave)
+    def show_other(label: str, color: str) -> None:
+        ready_row.pack_forget()
+        rec_row.pack_forget()
+        other_txt.configure(text=label, text_color=color)
+        other_row.pack(fill="x", expand=True)
 
     def poll() -> None:
-        st, detail = status_bridge.snapshot()
+        drain_queue()
+        st, detail = get_status()
         st_s = str(st)
-        if prev_poll_status[0] in ("Recording", "Processing") and st_s not in (
-            "Recording",
-            "Processing",
-        ):
-            collapse_ui()
-        prev_poll_status[0] = st_s
-        state_lbl.configure(text=_status_label(st_s))
-        if detail:
-            detail_lbl.configure(text=detail[:500] + ("…" if len(detail) > 500 else ""))
+        label = _status_label(st_s)
+        show_detail = bool(detail) and st_s == "Processing"
+        detail_text = (
+            (str(detail)[:500] + ("…" if len(str(detail)) > 500 else "")) if detail else ""
+        )
+
+        if st_s == "Idle":
+            show_ready()
+            w, h = width_collapsed, height_pill
+        elif st_s == "Recording":
+            show_recording()
+            w, h = 232 + gear_extra, height_pill
         else:
-            detail_lbl.configure(text="")
-        if st_s in ("Recording", "Processing"):
-            expand_ui()
+            color = "#FF6B6B" if st_s == "Error" else "#FFFFFF"
+            show_other(label, color)
+            w, h = (360 + gear_extra if show_detail else 172 + gear_extra), (96 if show_detail else height_pill)
+
+        if show_detail:
+            detail_lbl.configure(text=detail_text)
+            detail_wrap.pack(fill="x", expand=True)
+        else:
+            detail_wrap.pack_forget()
+
+        pill.geometry(f"{w}x{h}")
+        place_at_bottom(w, h)
+
         try:
             pill.update_idletasks()
+            pill.lift()
         except tk.TclError:
             pass
-        root.after(poll_ms, poll)
+        root.after(max(30, poll_ms), poll)
 
-    place_at_bottom()
+    show_ready()
+    place_at_bottom(width_collapsed, height_pill)
     poll()
-    LOGGER.info("Плавающий pill запущен")
+    LOGGER.info("Плавающий pill (CustomTkinter) запущен")
     root.mainloop()
+
+
+def run_floating_pill_loop(
+    *,
+    status_bridge: "StatusBridge",
+    app_name: str,
+    primary_color: str,
+    poll_ms: int = 50,
+) -> None:
+    """Блокирующий цикл CustomTkinter в отдельном потоке (как окно настроек)."""
+
+    def drain() -> None:
+        return
+
+    def get_state() -> tuple[str, Any]:
+        return status_bridge.snapshot()
+
+    _ctk_pill_main_loop(
+        _app_name=app_name,
+        _primary_color=primary_color,
+        poll_ms=poll_ms,
+        drain_queue=drain,
+        get_status=get_state,
+        command_queue=None,
+    )
 
 
 def run_floating_pill_loop_mp(
     status_queue: MPQueue,
+    command_queue: MPQueue,
     app_name: str,
     primary_color: str,
-    poll_ms: int = 100,
+    poll_ms: int = 50,
 ) -> None:
     """Pill в отдельном процессе: на macOS сначала AppKit (без Tk), иначе CustomTkinter."""
-    # region agent log
-    import json
-    import os
-    import time
-    from pathlib import Path
-
-    import multiprocessing as mp
-
-    try:
-        Path("/Users/krasikov/projects/ghostwriter/.cursor").mkdir(parents=True, exist_ok=True)
-        _payload = {
-            "sessionId": "edce00",
-            "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
-            "hypothesisId": "H2",
-            "location": "floating_pill.py:run_floating_pill_loop_mp:entry",
-            "message": "вход в целевую функцию pill-процесса",
-            "data": {
-                "pid": os.getpid(),
-                "ppid": os.getppid(),
-                "mp_process_name": mp.current_process().name,
-            },
-            "timestamp": int(time.time() * 1000),
-        }
-        with open(
-            "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log",
-            "a",
-            encoding="utf-8",
-        ) as _df:
-            _df.write(json.dumps(_payload, ensure_ascii=False) + "\n")
-    except OSError:
-        pass
-    # endregion
-
     import platform
 
     if platform.system() == "Darwin":
         try:
             from app.ui.floating_pill_native import run_macos_native_pill
 
-            run_macos_native_pill(status_queue, app_name, primary_color, poll_ms)
+            run_macos_native_pill(status_queue, command_queue, app_name, primary_color, poll_ms)
             return
         except Exception as err:
-            LOGGER.error(
-                "Плавающий pill (AppKit) не запустился: %s. "
-                "На macOS fallback на Tk/CustomTkinter отключён — у Apple CLI Python он часто падает в TkpInit.",
+            LOGGER.warning(
+                "Плавающий pill (AppKit) не запустился (%s), переключаемся на CustomTkinter.",
                 err,
             )
+            _run_floating_pill_loop_ctk_mp(status_queue, command_queue, app_name, primary_color, poll_ms)
             return
 
-    _run_floating_pill_loop_ctk_mp(status_queue, app_name, primary_color, poll_ms)
+    _run_floating_pill_loop_ctk_mp(status_queue, command_queue, app_name, primary_color, poll_ms)
 
 
 def _run_floating_pill_loop_ctk_mp(
     status_queue: MPQueue,
+    command_queue: MPQueue,
     app_name: str,
     primary_color: str,
-    poll_ms: int = 100,
+    poll_ms: int = 50,
 ) -> None:
     """Pill через CustomTkinter (Tcl/Tk) — fallback если нет Cocoa."""
     latest: list[str | None] = ["Idle", None]
 
-    ctk.set_appearance_mode("System")
-    ctk.set_default_color_theme("blue")
-
-    root = ctk.CTk()
-    root.withdraw()
-
-    pill = ctk.CTkToplevel(root)
-    pill.title("")
-    pill.overrideredirect(True)
-    pill.attributes("-topmost", True)
-    try:
-        pill.attributes("-alpha", 0.92)
-    except tk.TclError:
-        LOGGER.debug("alpha не поддерживается для Toplevel")
-
-    pill.configure(fg_color=("#1a1a1e", "#1a1a1e"))
-    pill.resizable(False, False)
-
-    width_collapsed, height_pill = 140, 36
-    pill.geometry(f"{width_collapsed}x{height_pill}")
-
-    def place_at_bottom() -> None:
-        pill.update_idletasks()
-        sw = pill.winfo_screenwidth()
-        sh = pill.winfo_screenheight()
-        w = pill.winfo_width()
-        h = pill.winfo_height()
-        x = max(0, (sw - w) // 2)
-        y = max(0, sh - h - 48)
-        pill.geometry(f"+{x}+{y}")
-
-    frame = ctk.CTkFrame(pill, fg_color="transparent", corner_radius=18)
-    frame.pack(fill="both", expand=True, padx=2, pady=2)
-
-    title = ctk.CTkLabel(
-        frame,
-        text=app_name[:18],
-        font=("Arial", 10, "bold"),
-        text_color=primary_color,
-    )
-    title.pack(side="left", padx=(10, 4))
-
-    state_lbl = ctk.CTkLabel(frame, text=_status_label("Idle"), font=("Arial", 11))
-    state_lbl.pack(side="left", padx=(0, 10))
-
-    detail_frame = ctk.CTkFrame(pill, fg_color="transparent")
-    detail_lbl = ctk.CTkLabel(
-        detail_frame,
-        text="",
-        font=("Arial", 10),
-        text_color="#aaaaaa",
-        wraplength=360,
-        justify="left",
-    )
-    detail_lbl.pack(anchor="w", padx=12, pady=(0, 8))
-
-    expanded = {"value": False}
-    prev_poll_status: list[str | None] = [None]
-
-    def set_collapsed_size() -> None:
-        pill.geometry(f"{width_collapsed}x{height_pill}")
-        place_at_bottom()
-
-    def expand_ui() -> None:
-        if expanded["value"]:
-            return
-        expanded["value"] = True
-        detail_frame.pack(fill="x", expand=True)
-        pill.geometry("400x96")
-        place_at_bottom()
-
-    def collapse_ui() -> None:
-        if not expanded["value"]:
-            return
-        expanded["value"] = False
-        detail_frame.pack_forget()
-        set_collapsed_size()
-
-    def on_enter(_event: object | None = None) -> None:
-        del _event
-        expand_ui()
-
-    def on_leave(_event: object | None = None) -> None:
-        del _event
-        st = latest[0]
-        if st not in ("Recording", "Processing"):
-            collapse_ui()
-
-    pill.bind("<Enter>", on_enter)
-    pill.bind("<Leave>", on_leave)
-    frame.bind("<Enter>", on_enter)
-    frame.bind("<Leave>", on_leave)
-
-    def poll() -> None:
+    def drain() -> None:
         try:
             while True:
                 st, det = status_queue.get_nowait()
@@ -323,36 +324,23 @@ def _run_floating_pill_loop_ctk_mp(
                 latest[1] = det
         except Empty:
             pass
-        st, detail = latest[0], latest[1]
-        st_s = str(st)
-        if prev_poll_status[0] in ("Recording", "Processing") and st_s not in (
-            "Recording",
-            "Processing",
-        ):
-            collapse_ui()
-        prev_poll_status[0] = st_s
-        state_lbl.configure(text=_status_label(st_s))
-        if detail:
-            detail_lbl.configure(text=str(detail)[:500] + ("…" if len(str(detail)) > 500 else ""))
-        else:
-            detail_lbl.configure(text="")
-        if st_s in ("Recording", "Processing"):
-            expand_ui()
-        try:
-            pill.update_idletasks()
-        except tk.TclError:
-            pass
-        root.after(poll_ms, poll)
 
-    place_at_bottom()
-    poll()
-    LOGGER.info("Плавающий pill (отдельный процесс) запущен")
-    root.mainloop()
+    def get_state() -> tuple[str, Any]:
+        return str(latest[0]), latest[1]
+
+    _ctk_pill_main_loop(
+        _app_name=app_name,
+        _primary_color=primary_color,
+        poll_ms=poll_ms,
+        drain_queue=drain,
+        get_status=get_state,
+        command_queue=command_queue,
+    )
 
 
 def start_floating_pill_thread(
     *,
-    status_bridge: StatusBridge,
+    status_bridge: "StatusBridge",
     app_name: str,
     primary_color: str,
 ) -> threading.Thread:

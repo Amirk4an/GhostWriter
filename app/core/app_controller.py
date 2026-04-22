@@ -5,44 +5,26 @@ from __future__ import annotations
 import logging
 import platform
 import queue
-import json
-import os
 import threading
 import time
-from pathlib import Path
 from dataclasses import dataclass
+from multiprocessing.queues import Queue as MPQueue
 from typing import TYPE_CHECKING, Any
 
 from app.core.config_manager import ConfigManager
 from app.core.glossary_manager import apply_glossary, glossary_prompt_block, load_glossary_entries
 from app.core.interfaces import OutputAdapter, TranscriptionProvider
 from app.core.llm_processor import LLMProcessor
+from app.core.mic_meter_controller import MicMeterController
+from app.core.history_manager import HistoryManager
+from app.core.stats_manager import StatsManager, wav_audio_duration_seconds
 from app.platform.macos_focus import get_macos_frontmost_app_name
+from app.platform.output_controller import ClipboardOutputController
 
 if TYPE_CHECKING:
     from app.ui.status_bridge import StatusBridge
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
-    """Пишет NDJSON-лог отладки без секретов."""
-    try:
-        _log_path = "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log"
-        Path(_log_path).parent.mkdir(parents=True, exist_ok=True)
-        payload: dict[str, object] = {
-            "sessionId": "edce00",
-            "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(time.time() * 1000),
-        }
-        with open(_log_path, "a", encoding="utf-8") as log_file:
-            log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except OSError:
-        pass
 
 
 @dataclass
@@ -66,6 +48,8 @@ class AppController:
         llm_processor: LLMProcessor,
         output_adapter: OutputAdapter,
         status_bridge: StatusBridge | None = None,
+        stats_manager: StatsManager | None = None,
+        history_manager: HistoryManager | None = None,
     ) -> None:
         self._config_manager = config_manager
         self._audio_engine = audio_engine
@@ -73,6 +57,8 @@ class AppController:
         self._llm_processor = llm_processor
         self._output_adapter = output_adapter
         self._status_bridge = status_bridge
+        self._stats_manager = stats_manager
+        self._history_manager = history_manager
         self._status = "Idle"
         self._recording_started_at: float | None = None
         self._paste_target_app: str | None = None
@@ -85,6 +71,12 @@ class AppController:
         self._latch_arm_deadline: float | None = None
         self._latch_stop_downs: list[float] = []
         self._hold_down_at: float | None = None
+        self._mic_meter = MicMeterController()
+
+        # Ссылки на multiprocessing.Queue должны жить столько же, сколько основной процесс,
+        # иначе GC может уничтожить SemLock до инициализации дочернего процесса (spawn).
+        self.mp_pill_status_queue: MPQueue | None = None
+        self.mp_pill_command_queue: MPQueue | None = None
 
     def _emit_status(self, status: str, detail: str | None = None) -> None:
         self._status = status
@@ -171,6 +163,7 @@ class AppController:
             self._paste_target_app = get_macos_frontmost_app_name()
         else:
             self._paste_target_app = None
+        self.stop_mic_meter()
         try:
             self._audio_engine.start_recording()
         except RuntimeError as error:
@@ -234,17 +227,10 @@ class AppController:
                 LOGGER.debug("Цель вставки (фокус при нажатии): %s", self._paste_target_app)
         else:
             self._paste_target_app = None
+        self.stop_mic_meter()
         try:
             self._audio_engine.start_recording()
         except RuntimeError as error:
-            # region agent log
-            _agent_debug_log(
-                "H10",
-                "app_controller.py:_begin_dictate_recording:error",
-                "audio_engine.start_recording failed",
-                {"error": str(error), "latch": latch},
-            )
-            # endregion
             LOGGER.error("%s", error)
             self._emit_status("Error", str(error))
             self._recording_started_at = None
@@ -252,14 +238,6 @@ class AppController:
             self._dictate_latch_active = False
             self._hold_down_at = None
             return
-        # region agent log
-        _agent_debug_log(
-            "H10",
-            "app_controller.py:_begin_dictate_recording:ok",
-            "audio recording started",
-            {"latch": latch, "paste_target_app": self._paste_target_app or ""},
-        )
-        # endregion
         self._emit_status("Recording", "Hands-free" if latch else None)
 
     def _abort_dictate_recording(self) -> None:
@@ -283,14 +261,6 @@ class AppController:
         self._latch_arm_deadline = None
 
         if not audio_bytes:
-            # region agent log
-            _agent_debug_log(
-                "H10",
-                "app_controller.py:_end_dictate_recording:empty",
-                "recording stopped with empty audio",
-                {"recorded_ms": round(recorded_ms, 2), "was_latch": was_latch},
-            )
-            # endregion
             self._emit_status("Idle")
             self._paste_target_app = None
             return
@@ -309,14 +279,6 @@ class AppController:
         except queue.Full:
             LOGGER.warning("Очередь обработки заполнена, задание пропущено")
             self._emit_status("Idle")
-        # region agent log
-        _agent_debug_log(
-            "H10",
-            "app_controller.py:_end_dictate_recording:queued",
-            "audio queued for processing",
-            {"audio_bytes_len": len(audio_bytes), "recorded_ms": round(recorded_ms, 2)},
-        )
-        # endregion
 
     def reload_config(self) -> None:
         """Перезагружает конфиг во время работы."""
@@ -340,6 +302,15 @@ class AppController:
     def get_audio_input_device_index(self) -> int | None:
         """Возвращает текущий индекс микрофона из конфигурации."""
         return self._config_manager.config.audio_input_device
+
+    def stop_mic_meter(self) -> None:
+        """Останавливает превью уровня микрофона."""
+        self._mic_meter.stop()
+
+    def prepare_process_shutdown(self) -> None:
+        """Останавливает превью и сбрасывает активную запись без постановки в очередь (выход из процесса)."""
+        self.stop_mic_meter()
+        self._abort_dictate_recording()
 
     def _worker_loop(self) -> None:
         while True:
@@ -386,14 +357,6 @@ class AppController:
 
         raw_text = apply_glossary(raw_text, glossary_pairs)
         raw_preview = (raw_text or "").strip()
-        # region agent log
-        _agent_debug_log(
-            "H11",
-            "app_controller.py:_process_job:stt",
-            "transcription finished",
-            {"raw_text_len": len(raw_preview), "stt_ms": round(stt_ms, 2)},
-        )
-        # endregion
         if not raw_preview:
             LOGGER.warning(
                 "Транскрипт пустой после STT (проверьте микрофон, уровень сигнала и language в config.json)."
@@ -416,25 +379,56 @@ class AppController:
             processed_text = self._llm_processor.refine_text(raw_text=raw_preview, system_prompt=effective_prompt)
         llm_ms = (time.perf_counter() - llm_started) * 1000
 
+        proc_stripped = (processed_text or "").strip()
+
         preview = raw_preview[:120] + ("…" if len(raw_preview) > 120 else "")
         LOGGER.info("Распознано (%d симв.): %s", len(raw_preview), preview)
 
-        if processed_text:
+        paste_ok = True
+        if proc_stripped:
             # Пока идёт output_text (osascript/Cmd+V), без этого pill остаётся с последним
             # partial-транскриптом — выглядит как «вечная обработка» после STT.
             if self._status_bridge is not None:
                 self._status_bridge.set_status("Processing", "Вставка в приложение…")
-            self._output_adapter.output_text(processed_text, paste_target_app=job.paste_target_app)
-            # region agent log
-            _agent_debug_log(
-                "H11",
-                "app_controller.py:_process_job:output",
-                "output adapter called",
-                {"processed_text_len": len(processed_text), "target_app": job.paste_target_app or ""},
-            )
-            # endregion
+            self._output_adapter.output_text(proc_stripped, paste_target_app=job.paste_target_app)
+            if isinstance(self._output_adapter, ClipboardOutputController):
+                paste_res = self._output_adapter.take_last_darwin_paste_result()
+                if paste_res is not None and not paste_res[0]:
+                    paste_ok = False
+                    self._emit_status("Error", paste_res[1])
         elif raw_preview:
             LOGGER.warning("Текст после LLM пустой, вставка пропущена.")
+
+        if proc_stripped and paste_ok and self._stats_manager is not None:
+            llm_used = self._llm_processor.is_remote_enabled()
+            audio_dur = wav_audio_duration_seconds(job.audio_bytes)
+            words = len(proc_stripped.split())
+            try:
+                self._stats_manager.record_successful_dictation(
+                    word_count=words,
+                    char_count=len(proc_stripped),
+                    recorded_ms=float(job.recorded_ms),
+                    audio_seconds=audio_dur,
+                    llm_used=llm_used,
+                )
+            except Exception:
+                LOGGER.exception("Не удалось обновить stats.json")
+
+        if (
+            proc_stripped
+            and paste_ok
+            and self._history_manager is not None
+            and self._config_manager.config.enable_history
+        ):
+            try:
+                target = (job.paste_target_app or "").strip()
+                self._history_manager.add_record(
+                    raw_text=raw_preview,
+                    final_text=proc_stripped,
+                    target_app=target,
+                )
+            except Exception:
+                LOGGER.exception("Не удалось записать историю диктовки")
 
         total_ms = job.recorded_ms + stt_ms + llm_ms
         LOGGER.info(

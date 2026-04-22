@@ -12,6 +12,10 @@ class LLMProcessor:
         self._provider = provider
         self._enabled = enabled
 
+    def is_remote_enabled(self) -> bool:
+        """``True``, если настроен провайдер и LLM не отключён в конфиге (будет сетевой вызов)."""
+        return bool(self._enabled and self._provider is not None)
+
     def refine_text(self, raw_text: str, system_prompt: str) -> str:
         """Возвращает обработанный текст либо исходный pass-through."""
         text = raw_text.strip()

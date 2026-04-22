@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import io
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from openai import OpenAI
 
 from app.core.interfaces import TranscriptionProvider
 
+if TYPE_CHECKING:
+    from app.core.config_manager import ConfigManager
+
 
 class OpenAIWhisperProvider(TranscriptionProvider):
     """Транскрибирует аудио через API OpenAI."""
 
-    def __init__(self, api_key: str, model_name: str) -> None:
-        self._client = OpenAI(api_key=api_key)
+    def __init__(self, config_manager: ConfigManager, model_name: str) -> None:
+        self._config_manager = config_manager
         self._model_name = model_name
 
     def transcribe(
@@ -29,10 +33,12 @@ class OpenAIWhisperProvider(TranscriptionProvider):
         if not audio_bytes:
             return ""
 
+        api_key = self._config_manager.get_secret("OPENAI_API_KEY")
+        client = OpenAI(api_key=api_key)
         buffer = io.BytesIO(audio_bytes)
         buffer.name = "audio.wav"
         kwargs: dict = {"model": self._model_name, "file": buffer}
         if language:
             kwargs["language"] = language
-        response = self._client.audio.transcriptions.create(**kwargs)
+        response = client.audio.transcriptions.create(**kwargs)
         return response.text.strip()

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import io
-import json
 import logging
-import os
 from threading import Lock
 
 import numpy as np
@@ -14,26 +12,6 @@ from scipy.io.wavfile import write as wav_write
 from scipy.signal import resample
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
-    """Пишет NDJSON-лог отладки без секретов."""
-    try:
-        _log_path = "/Users/krasikov/projects/ghostwriter/.cursor/debug-edce00.log"
-        os.makedirs(os.path.dirname(_log_path), exist_ok=True)
-        payload: dict[str, object] = {
-            "sessionId": "edce00",
-            "runId": os.environ.get("GHOST_DEBUG_RUN_ID", "run1"),
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(__import__("time").time() * 1000),
-        }
-        with open(_log_path, "a", encoding="utf-8") as log_file:
-            log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except OSError:
-        pass
 
 
 def resolve_audio_input_device(
@@ -106,11 +84,13 @@ def resolve_audio_input_device(
             return int(i)
 
     if excluded and input_indices and all(i in excluded for i in input_indices):
-        LOGGER.warning(
-            "Все доступные микрофоны в списке после тишины excluded=%s; сбрасываем фильтр и повторяем выбор",
-            sorted(excluded),
+        raise RuntimeError(
+            "Все доступные входы PortAudio уже дали нулевой сигнал (excluded="
+            f"{sorted(excluded)}). Рекурсивный сброс снова выбрал бы тот же default — это не лечит проблему. "
+            "Смените устройство ввода в «Системные настройки → Звук → Вход», либо задайте другой индекс в "
+            "config.json → audio_input_device. На macOS проверьте «Конфиденциальность → Микрофон» для приложения, "
+            "из которого запущен Ghost Writer."
         )
-        return resolve_audio_input_device(None, silence_excluded_ids=None)
 
     raise RuntimeError(
         "Микрофон не найден. На macOS: «Системные настройки → Конфиденциальность и безопасность → Микрофон» "
@@ -143,6 +123,7 @@ class AudioEngine:
         self._chunks: list[np.ndarray] = []
         self._is_recording = False
         self._capture_sample_rate: int = sample_rate
+        self._callback_log_counter = 0
 
     def set_input_device(self, device: int | None) -> None:
         """Задаёт индекс микрофона из конфига (после reload)."""
@@ -161,6 +142,7 @@ class AudioEngine:
                 return
 
             self._chunks = []
+            self._callback_log_counter = 0
             device_id = resolve_audio_input_device(
                 self._runtime_input_device,
                 silence_excluded_ids=self._silence_excluded_device_ids,
@@ -180,24 +162,6 @@ class AudioEngine:
                     self._sample_rate,
                 )
             self._capture_sample_rate = native_sr
-            # region agent log
-            _agent_debug_log(
-                "H18",
-                "audio_engine.py:start_recording",
-                "audio capture stream starting",
-                {
-                    "device_id": int(device_id),
-                    "device_name": str(dev_info.get("name", "")),
-                    "runtime_input_device": (
-                        int(self._runtime_input_device) if self._runtime_input_device is not None else None
-                    ),
-                    "silence_excluded": sorted(self._silence_excluded_device_ids),
-                    "capture_sr": int(native_sr),
-                    "target_sr": int(self._sample_rate),
-                    "channels": int(self._channels),
-                },
-            )
-            # endregion
             try:
                 self._stream = sd.InputStream(
                     device=device_id,
@@ -213,7 +177,10 @@ class AudioEngine:
             except sd.PortAudioError as error:
                 self._active_record_device_id = None
                 raise RuntimeError(
-                    "Не удалось открыть микрофон (PortAudio). Проверьте разрешения и устройство ввода."
+                    "Не удалось открыть микрофон (PortAudio): "
+                    f"{error}. На macOS откройте «Системные настройки → Конфиденциальность и безопасность → Микрофон» "
+                    "и включите доступ для приложения, из которого вы запускаете Ghost Writer (Terminal, Cursor и т.д.). "
+                    "Проверьте также «Звук → Ввод»."
                 ) from error
             except Exception as error:  # noqa: BLE001
                 self._active_record_device_id = None
@@ -252,44 +219,12 @@ class AudioEngine:
             audio = np.clip(audio, -1.0, 1.0)
             peak = float(np.max(np.abs(audio))) if audio.size else 0.0
             rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
-            # region agent log
-            _agent_debug_log(
-                "H18",
-                "audio_engine.py:stop_recording",
-                "audio capture stream stopped",
-                {
-                    "chunks": len(self._chunks),
-                    "samples": int(audio.shape[0]) if hasattr(audio, "shape") else 0,
-                    "peak": peak,
-                    "rms": rms,
-                    "capture_sr": int(capture_sr),
-                    "target_sr": int(self._sample_rate),
-                },
-            )
-            # endregion
             if peak >= 1e-6:
                 self._silence_excluded_device_ids.clear()
             if peak < 1e-6:
                 # Индекс может совпадать с «default» системы — без исключения снова откроется тот же мёртвый вход.
                 if used_device_id is not None:
                     self._silence_excluded_device_ids.add(int(used_device_id))
-                # region agent log
-                _agent_debug_log(
-                    "H20",
-                    "audio_engine.py:device_fallback",
-                    "exclude silent device and prefer another input on next start",
-                    {
-                        "silent_device_id": int(used_device_id) if used_device_id is not None else None,
-                        "from_runtime_device": (
-                            int(self._runtime_input_device) if self._runtime_input_device is not None else None
-                        ),
-                        "from_config_device": (
-                            int(self._input_device_explicit) if self._input_device_explicit is not None else None
-                        ),
-                        "excluded_after": sorted(self._silence_excluded_device_ids),
-                    },
-                )
-                # endregion
                 self._runtime_input_device = None
             if peak < 1e-6:
                 LOGGER.warning("Запись почти без сигнала (peak=%.2e); проверьте микрофон и уровень ввода", peak)
@@ -304,12 +239,35 @@ class AudioEngine:
         """Возвращает объект текущего аудиопотока."""
         return self._stream
 
+    def peek_resolved_input_device(self) -> tuple[int, int]:
+        """Возвращает (индекс устройства, native sample rate) для превью уровня без диктовки.
+
+        Raises:
+            RuntimeError: если уже идёт запись в :class:`AudioEngine`.
+        """
+        with self._lock:
+            if self._is_recording:
+                raise RuntimeError("Идёт запись — индикатор уровня временно недоступен.")
+            device_id = resolve_audio_input_device(
+                self._runtime_input_device,
+                silence_excluded_ids=self._silence_excluded_device_ids,
+            )
+            dev_info = sd.query_devices(device_id)
+            native_sr = int(float(dev_info.get("default_samplerate") or 0))
+            if native_sr <= 0:
+                native_sr = self._sample_rate
+            return int(device_id), int(native_sr)
+
     def noise_suppression(self, audio_data: np.ndarray) -> np.ndarray:
         """Хук для будущего шумоподавления."""
         return audio_data
 
     def _on_audio_callback(self, indata: np.ndarray, frames: int, time_info: dict, status: sd.CallbackFlags) -> None:
-        del frames, time_info
+        del time_info
+        self._callback_log_counter += 1
+        n = self._callback_log_counter
+        peak_chunk = float(np.max(np.abs(indata))) if indata.size else 0.0
+        del peak_chunk, n
         if status:
             LOGGER.warning("Проблема аудиопотока: %s", status)
         self._chunks.append(indata.copy())
