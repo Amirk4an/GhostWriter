@@ -8,7 +8,7 @@ Ghost Writer работает как конвейер:
 2. `AudioEngine` записывает аудио.
 3. STT-провайдер делает транскрипцию.
 4. `LLMProcessor` (если включён) редактирует/чистит текст.
-5. `OutputController` вставляет текст в активное приложение (буфер обмена + Cmd+V / AppleScript на macOS).
+5. `OutputController` вставляет текст в активное приложение: на macOS — буфер обмена + AppleScript/System Events и pynput; на Windows и прочих ОС — `pyperclip` + Ctrl+V через pynput (на Windows перед вставкой вызывается восстановление переднего окна через `user32`, см. `app/platform/windows/focus.py`).
 6. При успешной диктовке опционально пишутся **история** (`HistoryManager` → SQLite) и **статистика** (`StatsManager` → JSON).
 7. `StatusBridge` публикует статусы в трей и опционально в плавающий pill (`multiprocessing.Queue`).
 8. Вторая очередь **`pill_command_queue`** передаётся в процесс pill: команды (например `open_dashboard`) читаются лёгким потоком в основном процессе и приводят к запуску **отдельного процесса** дашборда: `multiprocessing.Process(target=dashboard_process.run_dashboard_process, args=(path_to_config.json, focus_queue))` — только `dashboard_process` + `main_dashboard` (без повторного импорта `main`; важно для собранного `.app`, где `subprocess` + `sys.executable` снова запускали бы ядро).
@@ -30,7 +30,7 @@ Ghost Writer работает как конвейер:
 - `glossary_manager.py` — пользовательский глоссарий из JSON.
 - `mic_meter_controller.py` — вспомогательная логика для индикации/метра микрофона в UI.
 - `hotkey_spec.py` — разбор и нормализация спецификаций хоткеев.
-- `logging_config.py` — `setup_logging()`: stderr + при `sys.frozen` файл в `~/Library/Logs/GhostWriter/app.log`.
+- `logging_config.py` — `setup_logging()`: stderr + при `sys.frozen` файл лога (на macOS — `~/Library/Logs/GhostWriter/app.log`, на Windows и прочих — рядом с пользовательскими данными, см. `_frozen_log_file`).
 
 ### `app/providers`
 
@@ -42,8 +42,10 @@ Ghost Writer работает как конвейер:
 
 - `hotkey_listener.py` — глобальные клавиши (диктовка и command mode).
 - `output_controller.py` — вставка текста через буфер обмена и эмуляцию ввода.
+- `paths.py` — единый каталог пользовательских данных (`default_app_support_dir`: macOS Application Support, Windows `%APPDATA%`, прочие — `~/.ghostwriter` и т.д.).
+- `windows/` — опциональные вызовы только на `win32`: фокус перед вставкой (`focus.py`), политика окна дашборда (`ctk_window_policy.py`, `WS_EX_TOOLWINDOW`).
 - `macos_focus.py`, `macos_ax_selection.py`, `macos_accessibility.py` — интеграции macOS (фокус, выделение, подсказки по TCC).
-- `single_instance.py` — файловый lock второго экземпляра (где доступен `fcntl`; на Windows в коде lock пропускается).
+- `single_instance.py` — второй экземпляр: на Unix — неблокирующий `flock` на файле в каталоге поддержки; на Windows — именованный mutex (`CreateMutexW`).
 - `gui_availability.py` — проверки окружения (в т.ч. `GHOSTWRITER_HEADLESS`, предупреждения про Apple CLT Python).
 - `audio_devices.py` — перечисление/утилиты устройств ввода PortAudio.
 

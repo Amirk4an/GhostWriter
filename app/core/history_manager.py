@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-import sys
 import threading
 from dataclasses import dataclass
 from datetime import datetime
@@ -20,12 +19,11 @@ def default_history_db_path(*, support_subdir: str = "GhostWriter") -> Path:
     """
     Путь к ``history.db`` рядом со ``stats.json`` (тот же ``support_subdir``).
 
-    На macOS: ``~/Library/Application Support/<subdir>/history.db``.
+    См. ``app.platform.paths.default_app_support_dir``.
     """
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / support_subdir / HISTORY_DB_NAME
-    safe = support_subdir.strip().lower().replace(" ", "_") or "ghostwriter"
-    return Path.home() / f".{safe}" / HISTORY_DB_NAME
+    from app.platform.paths import default_app_support_dir
+
+    return default_app_support_dir(support_subdir=support_subdir) / HISTORY_DB_NAME
 
 
 @dataclass(frozen=True)

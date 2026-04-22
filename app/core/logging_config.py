@@ -6,26 +6,32 @@ import logging
 import sys
 from pathlib import Path
 
-# Подкаталог в ~/Library/Logs/ для логов собранного .app (имя бандла в PyInstaller — GhostWriter).
-_FROZEN_LOG_SUBDIR = "GhostWriter"
+
+def _frozen_log_file() -> Path:
+    """Путь к файлу лога для собранного приложения (macOS / Windows / прочее)."""
+    from app.platform.paths import default_app_support_dir
+
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / "GhostWriter" / "app.log"
+    return default_app_support_dir() / "app.log"
 
 
 def setup_logging() -> None:
     """
-    Настраивает логирование: stderr и при запуске из PyInstaller — файл в ~/Library/Logs/.
+    Настраивает логирование: stderr и при запуске из PyInstaller — файл на диске.
 
-    В windowed .app вывод в консоль недоступен; файл позволяет смотреть ошибки через
-    ``tail -f ~/Library/Logs/GhostWriter/app.log``.
+    В windowed-сборке вывод в консоль недоступен; файл лежит рядом с пользовательскими
+    данными приложения (см. ``app.platform.paths``) или в ``~/Library/Logs/GhostWriter/`` на macOS.
     """
     log_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     formatter = logging.Formatter(log_format)
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stderr)]
 
     if getattr(sys, "frozen", False):
-        log_dir = Path.home() / "Library" / "Logs" / _FROZEN_LOG_SUBDIR
+        log_file = _frozen_log_file()
+        log_dir = log_file.parent
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
-            log_file = log_dir / "app.log"
             handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
         except OSError as err:
             # Не блокируем старт приложения из-за логов.

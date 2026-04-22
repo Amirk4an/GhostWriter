@@ -113,6 +113,12 @@ class ClipboardOutputController(OutputAdapter):
         if not text:
             return
 
+        win_fg_hwnd: int | None = None
+        if sys.platform == "win32":
+            from app.platform.windows.focus import capture_foreground_hwnd
+
+            win_fg_hwnd = capture_foreground_hwnd()
+
         if platform.system() == "Darwin":
             self._copy_to_clipboard_macos(text)
             time.sleep(0.14)
@@ -145,6 +151,12 @@ class ClipboardOutputController(OutputAdapter):
                 len(text),
             )
             return
+
+        if sys.platform == "win32":
+            from app.platform.windows.focus import allow_any_set_foreground_window, restore_foreground_hwnd
+
+            allow_any_set_foreground_window()
+            restore_foreground_hwnd(win_fg_hwnd)
 
         try:
             with self._keyboard.pressed(Key.ctrl):

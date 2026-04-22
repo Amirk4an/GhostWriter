@@ -1,41 +1,86 @@
-"""Ограничение одного запущенного экземпляра приложения (macOS / Unix)."""
+"""Ограничение одного запущенного экземпляра приложения (macOS / Unix / Windows)."""
 
 from __future__ import annotations
 
 import atexit
 import logging
 import sys
-from pathlib import Path
 from typing import BinaryIO
 
 LOGGER = logging.getLogger(__name__)
 
 _lock_fp: BinaryIO | None = None
+_win_mutex_handle: object | None = None
+
+
+def _sanitize_mutex_fragment(name: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in name.strip()) or "GhostWriter"
+
+
+def _try_acquire_windows_mutex(support_subdir: str) -> bool:
+    """Именованный mutex в сессии пользователя (``Local\\...``)."""
+    global _win_mutex_handle
+    if _win_mutex_handle is not None:
+        return True
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.SetLastError(0)
+    tag = _sanitize_mutex_fragment(support_subdir)
+    mutex_name = f"Local\\GhostWriter_{tag}"
+    handle = kernel32.CreateMutexW(None, False, mutex_name)
+    if not handle:
+        LOGGER.warning("CreateMutexW не удался (GetLastError=%s)", kernel32.GetLastError())
+        return True
+    err = kernel32.GetLastError()
+    ERROR_ALREADY_EXISTS = 183
+    if err == ERROR_ALREADY_EXISTS:
+        kernel32.CloseHandle(handle)
+        return False
+    _win_mutex_handle = handle
+
+    def _release_win() -> None:
+        global _win_mutex_handle
+        if _win_mutex_handle is not None:
+            try:
+                kernel32.CloseHandle(_win_mutex_handle)
+            except OSError:
+                LOGGER.debug("CloseHandle mutex", exc_info=True)
+            _win_mutex_handle = None
+
+    atexit.register(_release_win)
+    return True
 
 
 def try_acquire_single_instance_lock(support_subdir: str = "GhostWriter") -> bool:
     """
-    Пытается захватить неблокирующую файловую блокировку в ``~/Library/Application Support``.
+    Пытается захватить эксклюзивный lock второго экземпляра.
 
-    Снижает риск двойного запуска `.app` (два процесса, конфликт загрузки HF и т.п.).
+    - macOS / Unix: неблокирующий ``flock`` на файле в каталоге поддержки приложения.
+    - Windows: именованный mutex (см. ``_try_acquire_windows_mutex``).
 
     Args:
-        support_subdir: Имя каталога в ``Application Support`` (white-label: задайте своё).
+        support_subdir: Подкаталог white-label (как у ``default_app_support_dir``).
 
     Returns:
-        ``True``, если блокировка получена; ``False``, если другой экземпляр уже держит lock.
+        ``True``, если экземпляр может продолжать работу; ``False``, если другой экземпляр уже запущен.
     """
     global _lock_fp
-    if _lock_fp is not None:
+    if _lock_fp is not None or _win_mutex_handle is not None:
         return True
+
     if sys.platform == "win32":
-        return True
+        return _try_acquire_windows_mutex(support_subdir)
+
     try:
         import fcntl
     except ImportError:
         return True
 
-    root = Path.home() / "Library" / "Application Support" / support_subdir
+    from app.platform.paths import default_app_support_dir
+
+    root = default_app_support_dir(support_subdir=support_subdir)
     try:
         root.mkdir(parents=True, exist_ok=True)
         lock_path = root / "single_instance.lock"

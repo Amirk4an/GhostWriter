@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import RLock
@@ -62,13 +61,11 @@ def default_secrets_env_path(*, support_subdir: str = "GhostWriter") -> Path:
     """
     Путь к изменяемому файлу секретов (рядом со ``stats.json`` / ``history.db``).
 
-    На macOS: ``~/Library/Application Support/<subdir>/.env.secrets``.
-    Иначе: ``~/.<subdir_lower>/.env.secrets``.
+    См. ``app.platform.paths.default_app_support_dir``.
     """
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / support_subdir / SECRETS_FILE_NAME
-    safe = support_subdir.strip().lower().replace(" ", "_") or "ghostwriter"
-    return Path.home() / f".{safe}" / SECRETS_FILE_NAME
+    from app.platform.paths import default_app_support_dir
+
+    return default_app_support_dir(support_subdir=support_subdir) / SECRETS_FILE_NAME
 
 
 class ConfigManager:

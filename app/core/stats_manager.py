@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timezone
@@ -26,13 +25,11 @@ def default_stats_json_path(*, support_subdir: str = "GhostWriter") -> Path:
     """
     Путь к ``stats.json`` рядом с single-instance lock (white-label: тот же ``support_subdir``).
 
-    На macOS: ``~/Library/Application Support/<subdir>/stats.json``.
-    В остальных ОС: ``~/.<subdir_lower>/stats.json``.
+    См. ``app.platform.paths.default_app_support_dir``.
     """
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / support_subdir / STATS_FILE_NAME
-    safe = support_subdir.strip().lower().replace(" ", "_") or "ghostwriter"
-    return Path.home() / f".{safe}" / STATS_FILE_NAME
+    from app.platform.paths import default_app_support_dir
+
+    return default_app_support_dir(support_subdir=support_subdir) / STATS_FILE_NAME
 
 
 @dataclass

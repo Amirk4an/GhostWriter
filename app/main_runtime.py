@@ -98,13 +98,20 @@ def run_voiceflow_application() -> None:
     from multiprocessing import Queue as mp_queue_factory
     from multiprocessing.queues import Queue as MPQueue
 
+    from app.platform.paths import single_instance_hint_path
     from app.platform.single_instance import try_acquire_single_instance_lock
 
     if not try_acquire_single_instance_lock():
-        print(
-            "Уже запущен другой экземпляр приложения (см. ~/Library/Application Support/GhostWriter/single_instance.lock).",
-            file=sys.stderr,
-        )
+        if sys.platform == "win32":
+            print(
+                "Уже запущен другой экземпляр Ghost Writer (именованный mutex single-instance).",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"Уже запущен другой экземпляр приложения (файловый lock: {single_instance_hint_path()}).",
+                file=sys.stderr,
+            )
         sys.exit(0)
 
     from app.core.app_controller import AppController

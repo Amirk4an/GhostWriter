@@ -140,15 +140,16 @@ class PynputHotkeyListener(HotkeyListener):
                 {"pid": os.getpid(), "executable": sys.executable},
             )
             macos_accessibility_is_trusted(prompt_user=True)
-            try:
-                # Открываем нужный раздел настроек, чтобы пользователь сразу выдал доступ правильному бинарнику.
-                subprocess.run(
-                    ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
-                    check=False,
-                    timeout=5,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                pass
+            if sys.platform == "darwin":
+                try:
+                    # Открываем нужный раздел настроек, чтобы пользователь сразу выдал доступ правильному бинарнику.
+                    subprocess.run(
+                        ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
+                        check=False,
+                        timeout=5,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
             _agent_debug_log(
                 "H15",
                 "hotkey_listener.py:start:ax_after_prompt",

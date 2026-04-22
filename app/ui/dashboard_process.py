@@ -71,6 +71,12 @@ def run_dashboard_process(config_path_str: str, focus_commands: "MPQueue[Any] | 
     root.minsize(900, 600)
     root.geometry("1040x700")
 
+    if sys.platform == "win32":
+        from app.platform.windows.ctk_window_policy import apply_dashboard_window_policy
+
+        root.update_idletasks()
+        apply_dashboard_window_policy(root)
+
     def _macos_order_front_app_windows() -> None:
         """Вызывает orderFrontRegardless для видимых окон процесса (в т.ч. окно Tk)."""
         if sys.platform != "darwin" or platform.system() != "Darwin":
@@ -98,6 +104,12 @@ def run_dashboard_process(config_path_str: str, focus_commands: "MPQueue[Any] | 
         Смена Regular ↔ Accessory на каждом клике ломает Dock (фантомные иконки). Здесь только
         ``activateIgnoringOtherApps`` (через ``bring_app_to_front``), Tk и ``orderFrontRegardless``.
         """
+        if sys.platform == "win32":
+            from app.platform.windows.ctk_window_policy import raise_dashboard_to_front_win32
+
+            raise_dashboard_to_front_win32(root)
+            return
+
         if platform.system() != "Darwin":
             try:
                 root.deiconify()

@@ -51,7 +51,25 @@
   - `null`, пустая строка или значения `auto` / `detect` / `multi` (без учёта регистра) трактуются как **автоопределение** (внутри приложения — `None` для провайдера).
 - `enable_history` — сохранять историю успешных диктовок в локальную SQLite. По умолчанию `true`; при `false` новые записи не пишутся (уже сохранённые остаются, пока не очистите историю в дашборде).
 
-Пути к БД истории и к `stats.json` на macOS: `~/Library/Application Support/GhostWriter/`. На других ОС те же модули используют каталог вида `~/.ghostwriter/` (точное имя задаётся параметром `support_subdir` в коде; по умолчанию `GhostWriter` → `ghostwriter` в нижнем регистре для домашнего пути).
+Пути к БД истории, `stats.json`, `.env.secrets` и файловому lock второго экземпляра задаётся функцией `default_app_support_dir` в `app/platform/paths.py`:
+
+- **macOS:** `~/Library/Application Support/GhostWriter/`
+- **Windows:** `%APPDATA%\GhostWriter\` (обычно `C:\Users\<user>\AppData\Roaming\GhostWriter\`)
+- **прочие Unix:** `~/.ghostwriter/` (имя каталога из `support_subdir`, по умолчанию `GhostWriter` → `.ghostwriter`).
+
+На Windows второй экземпляр блокируется **именованным mutex** в сессии пользователя (не отдельным файлом); сообщение в консоли при отказе см. в `main_runtime.py`.
+
+### Command mode (редактирование выделения)
+
+Чтение выделенного текста в активном поле реализовано через **Accessibility API только на macOS** (`macos_ax_selection.py`). На **Windows и Linux** `get_focused_selected_text` возвращает `None`, поэтому command mode там **пока недоступен**, пока не будет отдельной реализации (например UI Automation на Windows).
+
+### Системный трей
+
+На macOS по умолчанию используется **rumps** (нативное меню); при недоступности и на **Windows** — **pystray** (контекстное меню по правому клику на иконку в области уведомлений).
+
+### Глобальные хоткеи (Windows)
+
+Слушатель строится на **pynput**. На Windows при отсутствии срабатывания проверьте, не требуется ли запуск от имени администратора для низкоуровневого перехвата в отдельных средах; в типичной пользовательской сессии права обычно достаточны.
 
 ## Пример
 
@@ -106,7 +124,7 @@
 
 Приоритет чтения `OPENAI_API_KEY` (и других секретов через `ConfigManager`):
 
-1. Файл **`.env.secrets`** в каталоге поддержки приложения. На macOS: `~/Library/Application Support/GhostWriter/.env.secrets` (туда же пишет вкладка **Settings** дашборда). На других ОС см. `ConfigManager.default_secrets_env_path()` — обычно `~/.ghostwriter/.env.secrets` при подкаталоге по умолчанию.
+1. Файл **`.env.secrets`** в каталоге поддержки приложения (см. раздел про пути выше: на Windows — под `%APPDATA%\GhostWriter\`, на macOS — `~/Library/Application Support/GhostWriter/`). Туда же пишет вкладка **Settings** дашборда.
 2. Локальный **`.env`** рядом с `config.json` или в текущем каталоге (удобно при разработке).
 3. Переменные окружения процесса.
 

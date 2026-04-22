@@ -6,10 +6,11 @@
 
 ## Требования
 
-- **Целевая платформа — macOS** (TCC для микрофона и универсального доступа, вставка через AppleScript/System Events, меню трея через **rumps** при наличии).
+- **macOS** — основная целевая платформа (TCC, вставка через AppleScript/System Events, трей через **rumps** при наличии).
+- **Windows** — поддерживается на уровне путей (`%APPDATA%\GhostWriter\`), single-instance mutex, трей **pystray**, вставка **Ctrl+V** и поднятие переднего окна (`app/platform/windows/`). Глобальные хоткеи — **pynput**; command mode чтения выделения пока только на macOS (см. `docs/CONFIGURATION.md`).
 - **Python 3.9+** (в репозитории удобно держать виртуальное окружение `.venv` в корне).
 
-Часть путей к данным пользователя (история, статистика, `.env.secrets`) на несистемах Darwin повторяет логику «каталог в домашней папке» (`~/.ghostwriter/` и т.п. — см. `ConfigManager` / `HistoryManager`), но сборка и UX ориентированы на macOS.
+Каталог пользовательских данных (история, статистика, `.env.secrets`, лог собранного приложения на Windows/Linux) задаётся в `app/platform/paths.py` (`default_app_support_dir`).
 
 ### Автовставка (Cmd+V)
 
@@ -27,7 +28,7 @@
    pip install -r requirements.txt
    ```
 
-3. Секреты для OpenAI (если используете облачные STT/LLM). Удобнее всего задать ключ на вкладке **Settings** дашборда — значение попадает в `~/Library/Application Support/GhostWriter/.env.secrets` на macOS. При разработке можно положить `.env` в корень репозитория или рядом с `config/config.json`:
+3. Секреты для OpenAI (если используете облачные STT/LLM). Удобнее всего задать ключ на вкладке **Settings** дашборда — файл `.env.secrets` окажется в каталоге поддержки приложения (на macOS: `~/Library/Application Support/GhostWriter/`, на Windows: `%APPDATA%\GhostWriter\`). При разработке можно положить `.env` в корень репозитория или рядом с `config/config.json`:
 
    ```bash
    OPENAI_API_KEY=sk-...
