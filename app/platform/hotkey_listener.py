@@ -63,9 +63,9 @@ def _key_in_mod_family(key: object, mod_name: str) -> bool:
 
 
 class PynputHotkeyListener(HotkeyListener):
-    """Слушатель dictation (press/hold + edge) и опционально command hotkey."""
+    """Слушатель dictation (press/hold + edge), опционально command и journal hotkey."""
 
-    def __init__(self, dictation_hotkey: str, command_hotkey: str = "") -> None:
+    def __init__(self, dictation_hotkey: str, command_hotkey: str = "", journal_hotkey: str = "") -> None:
         self._dict_spec = parse_hotkey_spec(dictation_hotkey)
         self._cmd_spec: HotkeySpec | None
         try:
@@ -74,14 +74,23 @@ class PynputHotkeyListener(HotkeyListener):
             LOGGER.warning("Некорректный command_mode_hotkey, режим команд отключён")
             self._cmd_spec = None
 
+        self._journal_spec: HotkeySpec | None
+        try:
+            self._journal_spec = parse_hotkey_spec(journal_hotkey) if journal_hotkey.strip() else None
+        except ValueError:
+            LOGGER.warning("Некорректный journal_hotkey, дневник по хоткею отключён")
+            self._journal_spec = None
+
         self._listener: Listener | None = None
         self._pressed: set[object] = set()
         self._dictate_trigger_down = False
         self._command_trigger_down = False
+        self._journal_trigger_down = False
 
         self._dictate_edge: Callable[[bool, float], None] | None = None
         self._command_press: Callable[[], None] | None = None
         self._command_release: Callable[[], None] | None = None
+        self._journal_edge: Callable[[bool, float], None] | None = None
         self._debug_raw_key_logs_left = 12
 
     def start(
@@ -92,6 +101,7 @@ class PynputHotkeyListener(HotkeyListener):
         dictate_edge: Callable[[bool, float], None] | None = None,
         command_press: Callable[[], None] | None = None,
         command_release: Callable[[], None] | None = None,
+        journal_edge: Callable[[bool, float], None] | None = None,
     ) -> None:
         if dictate_edge is not None:
             self._dictate_edge = dictate_edge
@@ -110,6 +120,7 @@ class PynputHotkeyListener(HotkeyListener):
 
         self._command_press = command_press
         self._command_release = command_release
+        self._journal_edge = journal_edge
 
         self._listener = Listener(on_press=self._handle_press, on_release=self._handle_release)
         self._listener.start()
@@ -123,6 +134,7 @@ class PynputHotkeyListener(HotkeyListener):
                 "dict_key_token": self._dict_spec.key_token,
                 "dict_modifiers": sorted(self._dict_spec.modifiers),
                 "has_command_hotkey": self._cmd_spec is not None,
+                "has_journal_hotkey": self._journal_spec is not None,
             },
         )
         _agent_debug_log(
@@ -206,6 +218,16 @@ class PynputHotkeyListener(HotkeyListener):
                     self._command_press()
                 return
 
+            if (
+                self._journal_spec
+                and self._journal_edge
+                and self._is_trigger_down_event(key, self._journal_spec)
+            ):
+                if not self._journal_trigger_down:
+                    self._journal_trigger_down = True
+                    self._journal_edge(True, time.perf_counter())
+                return
+
             if self._dictate_edge and self._is_trigger_down_event(key, self._dict_spec):
                 if not self._dictate_trigger_down:
                     self._dictate_trigger_down = True
@@ -236,6 +258,11 @@ class PynputHotkeyListener(HotkeyListener):
                 if self._command_trigger_down:
                     self._command_trigger_down = False
                     self._command_release()
+
+            if self._journal_spec and self._journal_edge and _key_matches_token(key, self._journal_spec.key_token):
+                if self._journal_trigger_down:
+                    self._journal_trigger_down = False
+                    self._journal_edge(False, time.perf_counter())
 
             if self._dictate_edge and _key_matches_token(key, self._dict_spec.key_token):
                 if self._dictate_trigger_down:

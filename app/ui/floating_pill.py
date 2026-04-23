@@ -215,14 +215,17 @@ def _ctk_pill_main_loop(
         st, detail = get_status()
         st_s = str(st)
         label = _status_label(st_s)
-        show_detail = bool(detail) and st_s == "Processing"
+        show_detail = bool(detail) and (st_s == "Processing" or st_s == "Idle")
         detail_text = (
             (str(detail)[:500] + ("…" if len(str(detail)) > 500 else "")) if detail else ""
         )
 
         if st_s == "Idle":
             show_ready()
-            w, h = width_collapsed, height_pill
+            if show_detail:
+                w, h = 360 + gear_extra, 96
+            else:
+                w, h = width_collapsed, height_pill
         elif st_s == "Recording":
             show_recording()
             w, h = 232 + gear_extra, height_pill

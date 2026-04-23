@@ -2,6 +2,8 @@
   "app_name": "Ghost Writer",
   "primary_color": "#2A5BCC",
   "hotkey": "f8",
+  "journal_hotkey": "",
+  "journal_system_prompt": "Пользователь диктует мысль для личного дневника. Верни один JSON-объект с ключами: \"title\" (краткий заголовок), \"tags\" (массив из 2–3 коротких строк-тегов для сортировки), \"advice\" (короткий совет или инсайт по теме), \"refined_text\" (исправленная от опечаток оригинальная мысль, без добавления новых фактов). Только JSON, без markdown и пояснений.",
   "command_mode_hotkey": "",
   "floating_pill_enabled": true,
   "hands_free_enabled": true,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from typing import Any
 
 
 class TranscriptionProvider(ABC):
@@ -27,6 +28,10 @@ class LLMProvider(ABC):
     @abstractmethod
     def refine_text(self, raw_text: str, system_prompt: str) -> str:
         """Очищает и улучшает текст."""
+
+    @abstractmethod
+    def refine_journal_json(self, raw_text: str, system_prompt: str) -> dict[str, Any]:
+        """Возвращает структуру дневника (title, tags, advice, refined_text) как dict."""
 
 
 class OutputAdapter(ABC):
@@ -53,6 +58,7 @@ class HotkeyListener(ABC):
         dictate_edge: Callable[[bool, float], None] | None = None,
         command_press: Callable[[], None] | None = None,
         command_release: Callable[[], None] | None = None,
+        journal_edge: Callable[[bool, float], None] | None = None,
     ) -> None:
         """Запускает слушатель (dictate_edge или пара on_press/on_release)."""
 

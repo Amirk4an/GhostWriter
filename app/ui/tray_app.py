@@ -25,6 +25,13 @@ def _tray_status_caption(code: str) -> str:
         return "Processing..."
     if code == "Error":
         return "Error"
+    if code == "Idle":
+        return "Ready"
+    if code and code.strip() and code not in ("Ready",):
+        s = code.strip()
+        if len(s) > 100:
+            return s[:97] + "…"
+        return s
     return "Ready"
 
 

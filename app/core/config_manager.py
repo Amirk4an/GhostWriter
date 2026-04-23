@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -10,6 +11,10 @@ from threading import RLock
 from typing import Any
 
 from dotenv import dotenv_values, load_dotenv, set_key, unset_key
+
+from app.core.hotkey_spec import parse_hotkey_spec
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,6 +57,13 @@ class AppConfig:
     local_whisper_device: str = "cpu"
     local_whisper_compute_type: str = "int8"
     enable_history: bool = True
+    journal_hotkey: str = ""
+    journal_system_prompt: str = (
+        "Пользователь диктует мысль для личного дневника. Верни один JSON-объект с ключами: "
+        '"title" (краткий заголовок), "tags" (массив из 2–3 коротких строк-тегов для сортировки), '
+        '"advice" (короткий совет или инсайт по теме), "refined_text" (исправленная от опечаток '
+        "оригинальная мысль, без добавления новых фактов). Только JSON, без markdown и пояснений."
+    )
 
 
 SECRETS_FILE_NAME = ".env.secrets"
@@ -268,6 +280,15 @@ class ConfigManager:
 
         lw_source, lw_custom, lw_device, lw_compute = self._parse_stt_local(raw)
 
+        journal_hotkey_raw = str(raw.get("journal_hotkey", "") or "").lower().replace(" ", "")
+        journal_hotkey_effective = journal_hotkey_raw
+        if journal_hotkey_raw:
+            try:
+                parse_hotkey_spec(journal_hotkey_raw)
+            except ValueError:
+                LOGGER.warning("Некорректный journal_hotkey %r — режим дневника отключён", journal_hotkey_raw)
+                journal_hotkey_effective = ""
+
         return AppConfig(
             app_name=str(raw["app_name"]),
             primary_color=str(raw["primary_color"]),
@@ -306,4 +327,8 @@ class ConfigManager:
             local_whisper_device=lw_device,
             local_whisper_compute_type=lw_compute,
             enable_history=bool(raw.get("enable_history", True)),
+            journal_hotkey=journal_hotkey_effective,
+            journal_system_prompt=str(
+                raw.get("journal_system_prompt", AppConfig.journal_system_prompt) or AppConfig.journal_system_prompt
+            ),
         )

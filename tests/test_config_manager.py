@@ -137,6 +137,15 @@ def test_set_secret_and_peek(tmp_path: Path, secrets_path: Path, monkeypatch: py
     assert manager.peek_secret("OPENAI_API_KEY") is None
 
 
+def test_journal_hotkey_normalized(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["journal_hotkey"] = " Alt + F9 "
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    manager = ConfigManager(config_file)
+    assert manager.config.journal_hotkey == "alt+f9"
+
+
 def test_secret_user_file_over_env(tmp_path: Path, secrets_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ConfigManager, "_local_dotenv_candidates", lambda self: [])
     secrets_path.write_text("OPENAI_API_KEY=from-user-file\n", encoding="utf-8")

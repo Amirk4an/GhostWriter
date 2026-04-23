@@ -9,11 +9,12 @@ import threading
 import time
 from dataclasses import dataclass
 from multiprocessing.queues import Queue as MPQueue
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from app.core.config_manager import ConfigManager
 from app.core.glossary_manager import apply_glossary, glossary_prompt_block, load_glossary_entries
 from app.core.interfaces import OutputAdapter, TranscriptionProvider
+from app.core.journal_manager import JournalManager
 from app.core.llm_processor import LLMProcessor
 from app.core.mic_meter_controller import MicMeterController
 from app.core.history_manager import HistoryManager
@@ -35,6 +36,7 @@ class ProcessingJob:
     recorded_ms: float
     paste_target_app: str | None = None
     command_selection: str | None = None
+    is_journal_mode: bool = False
 
 
 class AppController:
@@ -50,6 +52,7 @@ class AppController:
         status_bridge: StatusBridge | None = None,
         stats_manager: StatsManager | None = None,
         history_manager: HistoryManager | None = None,
+        journal_manager: JournalManager | None = None,
     ) -> None:
         self._config_manager = config_manager
         self._audio_engine = audio_engine
@@ -59,6 +62,9 @@ class AppController:
         self._status_bridge = status_bridge
         self._stats_manager = stats_manager
         self._history_manager = history_manager
+        self._journal_manager = journal_manager
+        self._recording_kind: Literal["dictate", "journal"] | None = None
+        self._idle_detail_after_job: str | None = None
         self._status = "Idle"
         self._recording_started_at: float | None = None
         self._paste_target_app: str | None = None
@@ -89,10 +95,12 @@ class AppController:
 
     def handle_dictate_edge(self, pressed: bool, when: float) -> None:
         """События основного хоткея: pressed=True вниз, False вверх."""
+        if self._recording_started_at is not None and self._recording_kind == "journal":
+            return
         cfg = self._config_manager.config
         if not cfg.hands_free_enabled:
             if pressed:
-                self._begin_dictate_recording(latch=False)
+                self._begin_dictate_recording(latch=False, recording_kind="dictate")
             else:
                 self._end_dictate_recording(flush=True)
             return
@@ -117,11 +125,11 @@ class AppController:
 
         if self._latch_arm_deadline is not None and when <= self._latch_arm_deadline:
             self._latch_arm_deadline = None
-            self._begin_dictate_recording(latch=True)
+            self._begin_dictate_recording(latch=True, recording_kind="dictate")
             return
 
         self._hold_down_at = when
-        self._begin_dictate_recording(latch=False)
+        self._begin_dictate_recording(latch=False, recording_kind="dictate")
 
     def _on_dictate_up(self, when: float) -> None:
         if self._dictate_latch_active:
@@ -202,6 +210,7 @@ class AppController:
                     recorded_ms=recorded_ms,
                     paste_target_app=target_app,
                     command_selection=selection,
+                    is_journal_mode=False,
                 )
             )
         except queue.Full:
@@ -215,7 +224,26 @@ class AppController:
     def on_hotkey_release(self) -> None:
         self.handle_dictate_edge(False, time.perf_counter())
 
-    def _begin_dictate_recording(self, *, latch: bool) -> None:
+    def handle_journal_edge(self, pressed: bool, when: float) -> None:
+        """Отдельный хоткей дневника: удержание — запись, отпускание — обработка (без hands-free latch)."""
+        del when
+        if self._command_selection_pending is not None:
+            return
+        if self._recording_started_at is not None and self._recording_kind != "journal":
+            return
+        if pressed:
+            self._begin_dictate_recording(latch=False, recording_kind="journal")
+        else:
+            self._end_dictate_recording(flush=True)
+
+    def _begin_dictate_recording(
+        self,
+        *,
+        latch: bool,
+        recording_kind: Literal["dictate", "journal"] = "dictate",
+    ) -> None:
+        if self._recording_started_at is not None:
+            return
         self._dictate_latch_active = latch
         if latch:
             self._latch_stop_downs.clear()
@@ -237,14 +265,18 @@ class AppController:
             self._paste_target_app = None
             self._dictate_latch_active = False
             self._hold_down_at = None
+            self._recording_kind = None
             return
-        self._emit_status("Recording", "Hands-free" if latch else None)
+        self._recording_kind = recording_kind
+        detail = "Дневник" if recording_kind == "journal" else ("Hands-free" if latch else None)
+        self._emit_status("Recording", detail)
 
     def _abort_dictate_recording(self) -> None:
         self._audio_engine.stop_recording()
         self._recording_started_at = None
         self._paste_target_app = None
         self._dictate_latch_active = False
+        self._recording_kind = None
         self._emit_status("Idle")
 
     def _end_dictate_recording(self, *, flush: bool) -> None:
@@ -260,6 +292,9 @@ class AppController:
         self._dictate_latch_active = False
         self._latch_arm_deadline = None
 
+        job_kind = self._recording_kind
+        self._recording_kind = None
+
         if not audio_bytes:
             self._emit_status("Idle")
             self._paste_target_app = None
@@ -267,6 +302,7 @@ class AppController:
 
         target_app = self._paste_target_app
         self._paste_target_app = None
+        is_journal = job_kind == "journal"
         try:
             self._queue.put_nowait(
                 ProcessingJob(
@@ -274,6 +310,7 @@ class AppController:
                     recorded_ms=recorded_ms,
                     paste_target_app=target_app,
                     command_selection=None,
+                    is_journal_mode=is_journal,
                 )
             )
         except queue.Full:
@@ -323,7 +360,11 @@ class AppController:
                 LOGGER.exception("Ошибка пайплайна: %s", error)
             finally:
                 if self._status != "Error":
-                    self._emit_status("Idle")
+                    extra = self._idle_detail_after_job
+                    self._idle_detail_after_job = None
+                    self._emit_status("Idle", extra)
+                else:
+                    self._idle_detail_after_job = None
                 self._queue.task_done()
 
     def _resolve_context_suffix(self, app_name: str | None) -> str:
@@ -374,10 +415,52 @@ class AppController:
                 command_system_prompt=config.command_mode_system_prompt,
                 base_system_prompt=base_prompt + context_suffix,
             )
+            llm_ms = (time.perf_counter() - llm_started) * 1000
+        elif job.is_journal_mode:
+            if self._journal_manager is None:
+                LOGGER.error("JournalManager не инициализирован")
+                self._emit_status("Error", "Дневник недоступен")
+                return
+            if not self._llm_processor.is_remote_enabled():
+                self._emit_status("Error", "Включите LLM для дневника")
+                return
+            journal_base = config.journal_system_prompt + (("\n\n" + glossary_block) if glossary_block else "")
+            journal_prompt = journal_base + context_suffix
+            structured = self._llm_processor.process_journal_entry(raw_preview, journal_prompt)
+            llm_ms = (time.perf_counter() - llm_started) * 1000
+            refined = (structured.refined_text or "").strip() or raw_preview
+            title = (structured.title or "").strip() or (refined[:80] + ("…" if len(refined) > 80 else ""))
+            advice = (structured.advice or "").strip()
+            tags = structured.tags[:5]
+            try:
+                self._journal_manager.create(
+                    raw_text=raw_preview,
+                    refined_text=refined,
+                    title=title,
+                    advice=advice,
+                    tags=tags,
+                )
+            except Exception:
+                LOGGER.exception("Не удалось сохранить заметку дневника")
+                self._emit_status("Error", "Не удалось сохранить заметку")
+                return
+            safe_title = title.replace("«", "'").replace("»", "'").replace('"', "'")
+            self._idle_detail_after_job = f"Заметка «{safe_title}» сохранена"
+            preview = raw_preview[:120] + ("…" if len(raw_preview) > 120 else "")
+            LOGGER.info("Дневник (%d симв.): %s", len(raw_preview), preview)
+            total_ms = job.recorded_ms + stt_ms + llm_ms
+            LOGGER.info(
+                "Latency metrics | record_ms=%.2f stt_ms=%.2f llm_ms=%.2f total_ms=%.2f",
+                job.recorded_ms,
+                stt_ms,
+                llm_ms,
+                total_ms,
+            )
+            return
         else:
             effective_prompt = base_prompt + context_suffix
             processed_text = self._llm_processor.refine_text(raw_text=raw_preview, system_prompt=effective_prompt)
-        llm_ms = (time.perf_counter() - llm_started) * 1000
+            llm_ms = (time.perf_counter() - llm_started) * 1000
 
         proc_stripped = (processed_text or "").strip()
 

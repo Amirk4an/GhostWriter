@@ -2,7 +2,38 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 from app.core.interfaces import LLMProvider
+
+
+@dataclass(frozen=True)
+class JournalStructuredResult:
+    """Распознанный ответ LLM для режима дневника."""
+
+    title: str
+    tags: list[str]
+    advice: str
+    refined_text: str
+
+
+def _normalize_journal_dict(data: dict[str, Any]) -> JournalStructuredResult:
+    title = str(data.get("title", "") or "").strip()
+    advice = str(data.get("advice", "") or "").strip()
+    refined = str(data.get("refined_text", data.get("refined", "")) or "").strip()
+    tags_raw = data.get("tags", [])
+    tags: list[str] = []
+    if isinstance(tags_raw, list):
+        for item in tags_raw[:10]:
+            s = str(item).strip()
+            if s:
+                tags.append(s)
+    elif isinstance(tags_raw, str) and tags_raw.strip():
+        tags = [tags_raw.strip()]
+    if len(tags) > 3:
+        tags = tags[:3]
+    return JournalStructuredResult(title=title, tags=tags, advice=advice, refined_text=refined)
 
 
 class LLMProcessor:
@@ -47,3 +78,15 @@ class LLMProcessor:
         )
         combined_system = f"{base_system_prompt}\n\n{command_system_prompt}"
         return self._provider.refine_text(user_message, combined_system)
+
+    def process_journal_entry(self, raw_text: str, system_prompt: str) -> JournalStructuredResult:
+        """Структурированный ответ для дневника (требует LLM)."""
+        text = raw_text.strip()
+        if not text:
+            return JournalStructuredResult(title="", tags=[], advice="", refined_text="")
+        if not self._enabled or self._provider is None:
+            raise RuntimeError("LLM отключён или провайдер не настроен")
+        payload = self._provider.refine_journal_json(text, system_prompt)
+        if not isinstance(payload, dict):
+            raise RuntimeError("LLM вернул не объект JSON")
+        return _normalize_journal_dict(payload)

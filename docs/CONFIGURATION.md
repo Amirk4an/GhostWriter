@@ -45,6 +45,8 @@
 | `audio_input_device` | `null` — устройство по умолчанию PortAudio; иначе целый индекс. |
 | `floating_pill_enabled` | `true` |
 | `command_mode_hotkey` | `""` — command mode выключен, если пусто. |
+| `journal_hotkey` | `""` — отдельный хоткей дневника выключен. Формат как у `hotkey` / `command_mode_hotkey`. Некорректная строка приводит к отключению с предупреждением в логе. |
+| `journal_system_prompt` | Системный промпт для JSON-ответа LLM (`title`, `tags`, `advice`, `refined_text`); см. значение по умолчанию в `AppConfig`. |
 | `command_mode_system_prompt` | Текст по умолчанию в `AppConfig` в коде. |
 | `app_context_prompts` | `{}` или объект; ключи — подстроки/имена приложений с macOS. |
 | `user_glossary_path` | `user_glossary.json` |
@@ -65,7 +67,7 @@
 - **Windows:** `%APPDATA%\GhostWriter\`
 - **прочие Unix:** `~/.ghostwriter/` (имя из `support_subdir`: `GhostWriter` → `.ghostwriter`)
 
-Там же лежат **`history.db`**, **`stats.json`**, **`.env.secrets`**, на Unix — **`single_instance.lock`**. На Windows второй экземпляр блокируется **mutex**, не файлом.
+Там же лежат **`history.db`** (таблицы `dictations` и **`journal_entries`** для дневника), **`stats.json`**, **`.env.secrets`**, на Unix — **`single_instance.lock`**. На Windows второй экземпляр блокируется **mutex**, не файлом.
 
 ### White-label
 

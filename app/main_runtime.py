@@ -116,6 +116,7 @@ def run_voiceflow_application() -> None:
 
     from app.core.app_controller import AppController
     from app.core.history_manager import HistoryManager
+    from app.core.journal_manager import JournalManager
     from app.core.stats_manager import StatsManager
     from app.core.audio_engine import AudioEngine
     from app.core.config_manager import ConfigManager
@@ -153,6 +154,8 @@ def run_voiceflow_application() -> None:
     stats_manager = StatsManager.with_default_path()
     history_manager = HistoryManager.with_default_path()
     history_manager.init_schema()
+    journal_manager = JournalManager.with_default_path()
+    journal_manager.init_schema()
 
     _no_tk = skip_tkinter_gui()
     if _no_tk and config.floating_pill_enabled:
@@ -178,6 +181,7 @@ def run_voiceflow_application() -> None:
         status_bridge=status_bridge,
         stats_manager=stats_manager,
         history_manager=history_manager,
+        journal_manager=journal_manager,
     )
 
     app_controller.mp_pill_status_queue = pill_queue
@@ -262,11 +266,17 @@ def run_voiceflow_application() -> None:
         pill_proc.start()
 
     cmd = bool(config.command_mode_hotkey.strip())
-    hotkey_listener = PynputHotkeyListener(config.hotkey, config.command_mode_hotkey)
+    jrn = bool(getattr(config, "journal_hotkey", "").strip())
+    hotkey_listener = PynputHotkeyListener(
+        config.hotkey,
+        config.command_mode_hotkey,
+        getattr(config, "journal_hotkey", "") or "",
+    )
     hotkey_listener.start(
         dictate_edge=app_controller.handle_dictate_edge,
         command_press=app_controller.on_command_hotkey_press if cmd else None,
         command_release=app_controller.on_command_hotkey_release if cmd else None,
+        journal_edge=app_controller.handle_journal_edge if jrn else None,
     )
 
     shutdown_once: list[bool] = [False]
@@ -280,9 +290,22 @@ def run_voiceflow_application() -> None:
         _terminate_child_process(dashboard_proc_ref[0], "Дашборд")
         _terminate_child_process(pill_proc, "Pill")
 
+    def _tray_status_line() -> str:
+        st, detail = status_bridge.snapshot()
+        if st == "Idle" and detail:
+            d = str(detail).strip()
+            return d[:100] + ("…" if len(d) > 100 else "")
+        if st == "Recording":
+            return "Recording"
+        if st == "Processing":
+            return "Processing"
+        if st == "Error":
+            return "Error"
+        return "Idle"
+
     tray = TrayApplication(
         config_manager=config_manager,
-        status_provider=lambda: app_controller.status,
+        status_provider=_tray_status_line,
         on_reload_config=app_controller.reload_config,
         on_quit=on_quit,
         on_open_dashboard=spawn_dashboard_process,

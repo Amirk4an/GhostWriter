@@ -294,7 +294,7 @@ def run_macos_native_pill(
             st_s = str(st)
             label = _status_label(st_s)
 
-            show_detail = bool(detail) and st_s == "Processing"
+            show_detail = bool(detail) and (st_s == "Processing" or st_s == "Idle")
             detail_text = (
                 (str(detail)[:420] + ("…" if detail and len(str(detail)) > 420 else ""))
                 if detail
@@ -321,7 +321,10 @@ def run_macos_native_pill(
                 self._ready_label.setHidden_(False)
                 self._pulse_host.setHidden_(True)
                 self._status_label_field.setHidden_(True)
-                w, h = 96.0 + gr, 42.0
+                if show_detail:
+                    w, h = 360.0 + gr, 88.0
+                else:
+                    w, h = 96.0 + gr, 42.0
             elif mode == "recording":
                 self._ready_label.setHidden_(True)
                 self._pulse_host.setHidden_(False)

@@ -1,5 +1,5 @@
 """
-Главное окно-дашборд (CustomTkinter): боковое меню и вкладки Home / Dictionary / History / Settings.
+Главное окно-дашборд (CustomTkinter): боковое меню и вкладки Home / Dictionary / History / Journal / Settings.
 
 В дочернем процессе используется только ``ConfigManager`` (своя память, конфиг с диска).
 Никаких вызовов Tk/CustomTkinter на уровне модуля: импорт ``customtkinter`` и виджеты
@@ -250,10 +250,13 @@ class MainDashboard:
         import pyperclip
 
         from app.core.history_manager import HistoryManager, default_history_db_path
+        from app.core.journal_manager import JournalManager
 
         _history_db_path = default_history_db_path()
         history_store_ui = HistoryManager(_history_db_path)
         history_store_ui.init_schema()
+        journal_store_ui = JournalManager(_history_db_path)
+        journal_store_ui.init_schema()
 
         history = ctk.CTkScrollableFrame(main_area, fg_color="transparent")
         pages["history"] = history
@@ -360,6 +363,216 @@ class MainDashboard:
                     fg_color=("#3A3A3C", "#3A3A3C"),
                     command=lambda t=rec.raw_text: _copy_clipboard_safe(t),
                 ).pack(side="left", padx=4)
+
+        journal = ctk.CTkFrame(main_area, fg_color="transparent")
+        pages["journal"] = journal
+        journal.grid_columnconfigure(0, weight=0, minsize=220)
+        journal.grid_columnconfigure(1, weight=1)
+        journal.grid_rowconfigure(3, weight=1)
+
+        ctk.CTkLabel(journal, text="Ежедневник", font=title_font, text_color="#F2F2F7").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 4)
+        )
+        ctk.CTkLabel(
+            journal,
+            text=f"Записи в том же файле SQLite: {_history_db_path}",
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=720,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
+
+        journal_filter_var = ctk.StringVar(value="Все")
+
+        def _journal_ts_label(iso_ts: str) -> str:
+            from datetime import date, datetime
+
+            try:
+                ts = datetime.fromisoformat(iso_ts)
+            except ValueError:
+                return iso_ts[:19]
+            local = ts.astimezone() if ts.tzinfo else ts
+            today = date.today()
+            if local.date() == today:
+                return f"Сегодня {local.strftime('%H:%M')}"
+            if (today - local.date()).days == 1:
+                return f"Вчера {local.strftime('%H:%M')}"
+            return local.strftime("%d.%m.%Y %H:%M")
+
+        journal_sidebar = ctk.CTkScrollableFrame(journal, fg_color=("#2C2C2E", "#2C2C2E"), corner_radius=12)
+        journal_sidebar.grid(row=3, column=0, sticky="nsew", padx=(0, 10), pady=(0, 0))
+
+        journal_detail_host = ctk.CTkScrollableFrame(journal, fg_color=("#2C2C2E", "#2C2C2E"), corner_radius=12)
+        journal_detail_host.grid(row=3, column=1, sticky="nsew")
+        journal_detail_host.grid_columnconfigure(0, weight=1)
+
+        journal_selected_id: list[int | None] = [None]
+
+        title_var = ctk.StringVar(value="")
+        tags_edit_var = ctk.StringVar(value="")
+
+        def _journal_filter_values() -> list[str]:
+            tags = ["Все"] + journal_store_ui.list_distinct_tags(limit=80)
+            return tags
+
+        journal_filter_menu = ctk.CTkOptionMenu(
+            journal,
+            values=_journal_filter_values(),
+            variable=journal_filter_var,
+            font=body_font,
+            width=200,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+        )
+        journal_filter_menu.grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 8))
+
+        def refresh_journal_filter_menu() -> None:
+            journal_filter_menu.configure(values=_journal_filter_values())
+            cur = journal_filter_var.get()
+            if cur not in journal_filter_menu.cget("values"):
+                journal_filter_var.set("Все")
+
+        advice_box = ctk.CTkTextbox(journal_detail_host, font=body_font, height=72, wrap="word")
+        refined_box = ctk.CTkTextbox(journal_detail_host, font=body_font, height=140, wrap="word")
+        raw_box = ctk.CTkTextbox(journal_detail_host, font=body_font, height=100, wrap="word")
+
+        def _clear_journal_detail_form() -> None:
+            journal_selected_id[0] = None
+            title_var.set("")
+            tags_edit_var.set("")
+            for box in (advice_box, refined_box, raw_box):
+                box.configure(state="normal")
+                box.delete("1.0", "end")
+                box.configure(state="disabled")
+
+        def _load_journal_detail(entry_id: int) -> None:
+            ent = journal_store_ui.get(entry_id)
+            if ent is None:
+                _clear_journal_detail_form()
+                return
+            journal_selected_id[0] = entry_id
+            title_var.set(ent.title)
+            tags_edit_var.set(", ".join(ent.tags_list()))
+            for box in (advice_box, refined_box, raw_box):
+                box.configure(state="normal")
+                box.delete("1.0", "end")
+            advice_box.insert("1.0", ent.advice)
+            refined_box.insert("1.0", ent.refined_text)
+            raw_box.insert("1.0", ent.raw_text)
+            for box in (advice_box, refined_box, raw_box):
+                box.configure(state="normal")
+
+        def refresh_journal_sidebar() -> None:
+            if not root.winfo_exists():
+                return
+            for w in journal_sidebar.winfo_children():
+                w.destroy()
+            tag_sel = journal_filter_var.get().strip()
+            filt: str | None = None if tag_sel in ("", "Все") else tag_sel
+            try:
+                items = journal_store_ui.list_recent(limit=200, tag_filter=filt)
+            except Exception:
+                LOGGER.exception("Чтение дневника")
+                items = []
+            if not items:
+                ctk.CTkLabel(
+                    journal_sidebar,
+                    text="Пока нет записей. Используйте journal hotkey в приложении.",
+                    font=body_font,
+                    text_color="#AEAEB2",
+                    wraplength=200,
+                    justify="left",
+                ).pack(anchor="w", padx=8, pady=12)
+                _clear_journal_detail_form()
+                return
+            for ent in items:
+                line = f"{ent.title or 'Без названия'}\n{_journal_ts_label(ent.created_at)}"
+
+                def _make_pick(eid: int) -> object:
+                    return lambda: _load_journal_detail(eid)
+
+                btn = ctk.CTkButton(
+                    journal_sidebar,
+                    text=line,
+                    font=small_font,
+                    anchor="w",
+                    height=56,
+                    fg_color=("#3A3A3C", "#3A3A3C"),
+                    hover_color=("#48484A", "#48484A"),
+                    command=_make_pick(ent.id),
+                )
+                btn.pack(fill="x", padx=6, pady=4)
+
+        def on_journal_filter_change(_choice: str) -> None:
+            refresh_journal_sidebar()
+
+        journal_filter_menu.configure(command=on_journal_filter_change)
+
+        def save_journal_edits() -> None:
+            eid = journal_selected_id[0]
+            if eid is None:
+                return
+            raw_tags = [t.strip() for t in tags_edit_var.get().split(",") if t.strip()][:10]
+            try:
+                journal_store_ui.update(
+                    eid,
+                    title=title_var.get().strip(),
+                    tags=raw_tags,
+                    advice=advice_box.get("1.0", "end").strip(),
+                    refined_text=refined_box.get("1.0", "end").strip(),
+                    raw_text=raw_box.get("1.0", "end").strip(),
+                )
+            except Exception:
+                LOGGER.exception("Сохранение записи дневника")
+                return
+            refresh_journal_filter_menu()
+            refresh_journal_sidebar()
+            _load_journal_detail(eid)
+
+        row_d = 0
+        ctk.CTkLabel(journal_detail_host, text="Заголовок", font=small_font, text_color="#AEAEB2").grid(
+            row=row_d, column=0, sticky="w", padx=12, pady=(12, 2)
+        )
+        row_d += 1
+        ctk.CTkEntry(journal_detail_host, textvariable=title_var, font=body_font).grid(
+            row=row_d, column=0, sticky="ew", padx=12, pady=(0, 8)
+        )
+        row_d += 1
+        ctk.CTkLabel(journal_detail_host, text="Теги (через запятую)", font=small_font, text_color="#AEAEB2").grid(
+            row=row_d, column=0, sticky="w", padx=12, pady=(0, 2)
+        )
+        row_d += 1
+        ctk.CTkEntry(journal_detail_host, textvariable=tags_edit_var, font=body_font).grid(
+            row=row_d, column=0, sticky="ew", padx=12, pady=(0, 8)
+        )
+        row_d += 1
+        ctk.CTkLabel(journal_detail_host, text="Совет", font=small_font, text_color="#AEAEB2").grid(
+            row=row_d, column=0, sticky="w", padx=12, pady=(0, 2)
+        )
+        row_d += 1
+        advice_box.grid(row=row_d, column=0, sticky="ew", padx=12, pady=(0, 8))
+        row_d += 1
+        ctk.CTkLabel(journal_detail_host, text="Текст заметки", font=small_font, text_color="#AEAEB2").grid(
+            row=row_d, column=0, sticky="w", padx=12, pady=(0, 2)
+        )
+        row_d += 1
+        refined_box.grid(row=row_d, column=0, sticky="ew", padx=12, pady=(0, 8))
+        row_d += 1
+        ctk.CTkLabel(journal_detail_host, text="Сырой транскрипт", font=small_font, text_color="#AEAEB2").grid(
+            row=row_d, column=0, sticky="w", padx=12, pady=(0, 2)
+        )
+        row_d += 1
+        raw_box.grid(row=row_d, column=0, sticky="ew", padx=12, pady=(0, 8))
+        row_d += 1
+        ctk.CTkButton(
+            journal_detail_host,
+            text="Сохранить изменения",
+            font=body_font,
+            height=36,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            command=save_journal_edits,
+        ).grid(row=row_d, column=0, sticky="w", padx=12, pady=(0, 16))
+        _clear_journal_detail_form()
 
         settings = ctk.CTkScrollableFrame(main_area, fg_color="transparent")
         pages["settings"] = settings
@@ -695,6 +908,9 @@ class MainDashboard:
                 restart_mic_meter_if_settings()
                 if current_page[0] == "history":
                     refresh_history_ui()
+                if current_page[0] == "journal":
+                    refresh_journal_filter_menu()
+                    refresh_journal_sidebar()
             except Exception:
                 LOGGER.exception("reload из дашборда")
 
@@ -719,7 +935,7 @@ class MainDashboard:
             pages[name].grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
             for b in nav_buttons:
                 b.configure(fg_color="transparent")
-            idx = {"home": 0, "dictionary": 1, "history": 2, "settings": 3}[name]
+            idx = {"home": 0, "dictionary": 1, "history": 2, "journal": 3, "settings": 4}[name]
             nav_buttons[idx].configure(fg_color=("#3A3A3C", "#3A3A3C"))
             if name == "settings":
                 restart_mic_meter_if_settings()
@@ -728,6 +944,9 @@ class MainDashboard:
                 refresh_home_stats()
             if name == "history":
                 refresh_history_ui()
+            if name == "journal":
+                refresh_journal_filter_menu()
+                refresh_journal_sidebar()
 
         def nav_cmd(key: str) -> Any:
             return lambda: show_page(key)
@@ -767,6 +986,18 @@ class MainDashboard:
         )
         b_hist.pack(fill="x", padx=10, pady=4)
         nav_buttons.append(b_hist)
+
+        b_journal = ctk.CTkButton(
+            sidebar,
+            text="Ежедневник",
+            font=body_font,
+            anchor="w",
+            height=40,
+            fg_color="transparent",
+            command=nav_cmd("journal"),
+        )
+        b_journal.pack(fill="x", padx=10, pady=4)
+        nav_buttons.append(b_journal)
 
         b_set = ctk.CTkButton(
             sidebar,
