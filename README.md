@@ -12,9 +12,10 @@
 
 Каталог пользовательских данных (история, статистика, `.env.secrets`, лог собранного приложения на Windows/Linux) задаётся в `app/platform/paths.py` (`default_app_support_dir`).
 
-### Автовставка (Cmd+V)
+### Автовставка
 
-Чтобы macOS разрешила программную вставку (**pynput** / System Events), в **Системные настройки → Конфиденциальность и безопасность → Универсальный доступ** включите переключатель для **того же приложения**, из которого вы запускаете Ghost Writer (часто **Terminal**, **Cursor**, **iTerm** или интерпретатор **Python**). При ошибке автоматизации (**1002**) может понадобиться разрешить управление **System Events**. Если текст в поле не попал — он уже в буфере обмена, нажмите **Cmd+V** вручную.
+- **macOS (Cmd+V):** чтобы система разрешила программную вставку (**pynput** / System Events), в **Системные настройки → Конфиденциальность и безопасность → Универсальный доступ** включите переключатель для **того же приложения**, из которого запущен Ghost Writer (часто **Terminal**, **Cursor**, **iTerm** или интерпретатор **Python**). При ошибке автоматизации (**1002**) может понадобиться разрешить управление **System Events**. Если текст в поле не попал — он уже в буфере обмена, нажмите **Cmd+V** вручную.
+- **Windows (Ctrl+V):** перед вставкой поднимается переднее окно (`app/platform/windows/focus.py`). При сбоях проверьте, что целевое приложение допускает вставку из буфера; текст дублируется через **pyperclip** так же, как на macOS.
 
 ## Быстрый старт
 
@@ -51,7 +52,7 @@
 | `app/main_runtime.py` | Сборка пайплайна: конфиг, провайдеры STT/LLM, аудио, вывод, `AppController`, дочерние процессы pill и дашборда, хоткеи, трей, обработка сигналов. |
 | `app/core/` | Оркестратор (`app_controller`), аудио, конфиг, фабрика провайдеров, LLM, интерфейсы, **история** (`history_manager`), **статистика** (`stats_manager`), глоссарий, логирование. |
 | `app/providers/` | Реализации STT и LLM (faster-whisper, OpenAI). |
-| `app/platform/` | Глобальные клавиши, вывод в систему, macOS-интеграции, single-instance lock (где доступен `fcntl`). |
+| `app/platform/` | Глобальные клавиши, вывод в систему, `paths.py` (каталог данных), интеграции ОС, один экземпляр: `flock` на Unix или именованный mutex на Windows (`single_instance.py`). |
 | `app/ui/` | Трей, pill, дашборд (отдельные процессы), мост статусов. |
 | `config/` | `config.json`, пользовательский глоссарий и связанные данные. |
 | `tests/` | Pytest. |
@@ -78,36 +79,46 @@ pyinstaller GhostWriter.spec --clean
 
 Офлайн-веса faster-whisper: блок **`stt_local`** в `config.json` (см. [docs/CONFIGURATION.md](docs/CONFIGURATION.md)) и каталог **`assets/models/`** — при сборке, если папка есть, она попадает в `datas`. Подробности в [assets/models/README.md](assets/models/README.md).
 
-Второй экземпляр на **не-Windows** платформах с **`fcntl`** блокируется **single-instance lock**: файл `~/Library/Application Support/GhostWriter/single_instance.lock` (тот же подкаталог, что и для истории на macOS; путь в коде задан в стиле macOS и на других Unix создаётся так же — см. `app/platform/single_instance.py`). На **Windows** захват lock в коде пропускается (`try_acquire_single_instance_lock` сразу возвращает успех).
+Второй экземпляр блокируется так: на **macOS / Linux** — неблокирующий **`flock`** на файле `single_instance.lock` в каталоге данных (`default_app_support_dir`, см. `app/platform/paths.py`); на **Windows** — именованный **mutex** в сессии пользователя (`Local\\GhostWriter_<subdir>`). Сообщения в stderr при отказе — в `app/main_runtime.py`.
 
 ### Логи собранного приложения
 
-При запуске из **PyInstaller** (`sys.frozen`) логи дублируются в файл:
+При запуске из **PyInstaller** (`sys.frozen`) логи дублируются в файл на диске (см. `app/core/logging_config.py`):
 
-`~/Library/Logs/GhostWriter/app.log`
+- **macOS:** `~/Library/Logs/GhostWriter/app.log`
+- **Windows и прочие:** `%APPDATA%\GhostWriter\app.log` (или `~/.ghostwriter/app.log` на Unix без отдельного каталога Logs — как в `_frozen_log_file()`)
 
-Удобно для отладки двойным кликом по `.app`, когда stderr недоступен. Запуск бинарника из терминала даёт тот же вывод в консоль:
+Удобно для отладки windowed-сборки, когда stderr недоступен. Запуск бинарника из терминала даёт тот же вывод в консоль:
 
 ```bash
 ./dist/GhostWriter.app/Contents/MacOS/GhostWriter
 ```
 
-## Данные на диске (macOS)
+## Данные на диске
 
-В каталоге **`~/Library/Application Support/GhostWriter/`** (имя white-label можно менять в коде констант `support_subdir`) обычно лежат:
+Каталог задаётся **`default_app_support_dir`** в `app/platform/paths.py` (параметр white-label `support_subdir`, по умолчанию `GhostWriter`):
+
+| Платформа | Типичный путь |
+|-----------|----------------|
+| macOS | `~/Library/Application Support/GhostWriter/` |
+| Windows | `%APPDATA%\GhostWriter\` |
+| Linux и прочие Unix | `~/.ghostwriter/` |
+
+В нём обычно лежат:
 
 - `.env.secrets` — ключи API (запись из дашборда);
 - `history.db` — локальная история диктовок (SQLite), если `enable_history` в конфиге;
 - `stats.json` — агрегированная статистика для дашборда;
-- `single_instance.lock` — lock второго экземпляра.
+- `single_instance.lock` — файловый lock второго экземпляра (Unix; на Windows эксклюзивность — через mutex, не через этот файл);
+- при **frozen**-сборке на не-macOS — также **`app.log`** рядом с данными (см. выше).
 
 ## Устранение неполадок
 
 ### Микрофон не записывает
 
-В режиме **консоли** (`python3 main.py`): на macOS в **Конфиденциальность и безопасность → Микрофон** включите доступ для **Terminal** (или IDE), из которой запущен процесс.
+В режиме **консоли** (`python3 main.py`): на **macOS** в **Конфиденциальность и безопасность → Микрофон** включите доступ для **Terminal** (или IDE), из которой запущен процесс. На **Windows 10/11** — **Параметры → Конфиденциальность → Микрофон** для классических и UWP-приложений.
 
-В режиме **собранного .app**: разрешите микрофон для **GhostWriter** (или имени вашего бандла) в том же разделе настроек — запрос текста подставляется из `Info.plist` при сборке. Проверьте **Звук → Ввод** и при необходимости поле `audio_input_device` в `config.json` (индекс устройства PortAudio; `null` — устройство по умолчанию).
+В режиме **собранного .app** (macOS): разрешите микрофон для **GhostWriter** (или имени вашего бандла) — запрос текста подставляется из `Info.plist` при сборке. Проверьте **Звук → Ввод** и при необходимости поле `audio_input_device` в `config.json` (индекс устройства PortAudio; `null` — устройство по умолчанию).
 
 ### Глобальный хоткей не срабатывает
 

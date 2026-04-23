@@ -30,7 +30,7 @@ Ghost Writer работает как конвейер:
 - `glossary_manager.py` — пользовательский глоссарий из JSON.
 - `mic_meter_controller.py` — вспомогательная логика для индикации/метра микрофона в UI.
 - `hotkey_spec.py` — разбор и нормализация спецификаций хоткеев.
-- `logging_config.py` — `setup_logging()`: stderr + при `sys.frozen` файл лога (на macOS — `~/Library/Logs/GhostWriter/app.log`, на Windows и прочих — рядом с пользовательскими данными, см. `_frozen_log_file`).
+- `logging_config.py` — `setup_logging()`: stderr + при `sys.frozen` файл **`app.log`** (macOS: `~/Library/Logs/GhostWriter/`; иначе тот же каталог, что `default_app_support_dir`, см. `_frozen_log_file` в модуле).
 
 ### `app/providers`
 
