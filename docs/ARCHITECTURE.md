@@ -1,72 +1,81 @@
 # Архитектура Ghost Writer
 
-## Обзор пайплайна
+Документ описывает поток данных и основные модули. Детали ключей конфигурации — в [CONFIGURATION.md](CONFIGURATION.md).
 
-Ghost Writer работает как конвейер:
+## Точка входа и процессы
 
-1. Пользователь нажимает глобальный хоткей (**pynput**).
-2. `AudioEngine` записывает аудио.
-3. STT-провайдер делает транскрипцию.
-4. `LLMProcessor` (если включён) редактирует/чистит текст.
-5. `OutputController` вставляет текст в активное приложение: на macOS — буфер обмена + AppleScript/System Events и pynput; на Windows и прочих ОС — `pyperclip` + Ctrl+V через pynput (на Windows перед вставкой вызывается восстановление переднего окна через `user32`, см. `app/platform/windows/focus.py`).
-6. При успешной диктовке опционально пишутся **история** (`HistoryManager` → SQLite) и **статистика** (`StatsManager` → JSON).
-7. `StatusBridge` публикует статусы в трей и опционально в плавающий pill (`multiprocessing.Queue`).
-8. Вторая очередь **`pill_command_queue`** передаётся в процесс pill: команды (например `open_dashboard`) читаются лёгким потоком в основном процессе и приводят к запуску **отдельного процесса** дашборда: `multiprocessing.Process(target=dashboard_process.run_dashboard_process, args=(path_to_config.json, focus_queue))` — только `dashboard_process` + `main_dashboard` (без повторного импорта `main`; важно для собранного `.app`, где `subprocess` + `sys.executable` снова запускали бы ядро).
+1. **`main.py`** — только инициализация `multiprocessing`: `freeze_support()`, `set_start_method("spawn", force=True)`, проверка `multiprocessing.parent_process()` (дочерние процессы сразу выходят без импорта тяжёлого стека), затем `run_voiceflow_application()` из `app/main_runtime.py`.
 
-Точка входа процесса: **`main.py`** (тонкая оболочка: `spawn`, `freeze_support`). Вся сборка приложения — **`app/main_runtime.run_voiceflow_application`**.
+2. **`app/main_runtime.run_voiceflow_application`** — единственное место сборки зависимостей рантайма: `ConfigManager`, фабрика провайдеров, `AudioEngine`, `ClipboardOutputController`, `AppController`, опционально очереди pill, поток обработки `pill_command_queue`, `PynputHotkeyListener`, `TrayApplication`, обработчики `SIGINT`/`SIGTERM`, корректное завершение дочерних `Process`.
 
-## Компоненты
+3. **Корень файлов приложения** — в `main_runtime._project_root_dir()`: при `sys.frozen` и `sys._MEIPASS` (PyInstaller) конфиг и ресурсы читаются из распакованного бандла; иначе — родительский каталог относительно `app/main_runtime.py` (корень репозитория при разработке).
 
-### `app/core`
+## Обзор пайплайна диктовки
 
-- `app_controller.py` — оркестратор жизненного цикла диктовки, command mode, hands-free/latch, взаимодействие со статусами.
-- `audio_engine.py` — микрофон, буфер, WAV для STT, оценка уровня сигнала.
-- `config_manager.py` — загрузка/валидация `config/config.json`, слой секретов (`.env.secrets`, `.env`, окружение), точечные патчи из UI (`audio_input_device`, `enable_history`).
-- `provider_factory.py` — сборка STT/LLM-провайдеров из конфига.
-- `llm_processor.py` — system prompt и постобработка текста.
-- `interfaces.py` — контракты провайдеров и адаптеров вывода.
-- `history_manager.py` — SQLite-история диктовок (дашборд читает в режиме WAL).
-- `stats_manager.py` — локальный `stats.json` (сессии, слова, оценка «сэкономленного времени»).
-- `glossary_manager.py` — пользовательский глоссарий из JSON.
-- `mic_meter_controller.py` — вспомогательная логика для индикации/метра микрофона в UI.
-- `hotkey_spec.py` — разбор и нормализация спецификаций хоткеев.
-- `logging_config.py` — `setup_logging()`: stderr + при `sys.frozen` файл **`app.log`** (macOS: `~/Library/Logs/GhostWriter/`; иначе тот же каталог, что `default_app_support_dir`, см. `_frozen_log_file` в модуле).
+1. Пользователь нажимает глобальный хоткей (**pynput**, `PynputHotkeyListener`).
+2. **`AudioEngine`** записывает PCM в буфер и при необходимости формирует WAV для STT.
+3. **STT-провайдер** (`FasterWhisperProvider` или `OpenAIWhisperProvider` через `ProviderFactory`) выполняет транскрипцию (в т.ч. стриминг при включённой опции в конфиге).
+4. **`LLMProcessor`** при `llm_enabled` применяет system prompt (контекст активного приложения из `macos_focus` / глоссарий / `app_context_prompts`).
+5. **`ClipboardOutputController`** вставляет результат: на **macOS** — буфер обмена + AppleScript/System Events и pynput; на **Windows** — pyperclip + поднятие переднего окна (`windows/focus.py`) + Ctrl+V; на прочих ОС — по возможности аналогично без AppleScript.
+6. При успехе опционально **`HistoryManager`** (SQLite) и **`StatsManager`** (JSON).
+7. **`StatusBridge`** публикует коды статуса в трей и при наличии — в очередь pill.
+8. **`pill_command_queue`**: команда `open_dashboard` в отдельном потоке приводит к **`multiprocessing.Process(target=run_dashboard_process, args=(config_json_path, focus_queue))`**. Дочерний процесс **не** импортирует корневой `main` — это важно для собранного `.app`, где повторный запуск бинарника через `subprocess` поднял бы второе ядро.
 
-### `app/providers`
+## Компоненты `app/core`
 
-- `faster_whisper_provider.py` — локальная транскрипция (в т.ч. стриминг, VAD по конфигу).
-- `openai_whisper_provider.py` — транскрипция через OpenAI API.
-- `openai_llm_provider.py` — LLM через OpenAI API.
+| Модуль | Назначение |
+|--------|------------|
+| `app_controller.py` | Жизненный цикл диктовки, hands-free/latch, command mode, reload конфига, связь со статусами и менеджерами истории/статистики. |
+| `audio_engine.py` | Захват с `sounddevice`, чанки, WAV, метрики `peak`/`rms` в логах. |
+| `config_manager.py` | JSON-конфиг, валидация, секреты, `patch_audio_input_device`, `patch_enable_history`. |
+| `provider_factory.py` | Создание STT/LLM по `AppConfig`. |
+| `llm_processor.py` | Вызов LLM с промптами. |
+| `interfaces.py` | Абстракции провайдеров и вывода. |
+| `history_manager.py` | SQLite, WAL, лимит записей. |
+| `stats_manager.py` | `stats.json`, оценка «сэкономленного времени». |
+| `glossary_manager.py` | Пользовательский JSON-глоссарий. |
+| `mic_meter_controller.py` | Логика метра/индикации микрофона для UI. |
+| `hotkey_spec.py` | Парсинг строк хоткеев. |
+| `logging_config.py` | `setup_logging()`: stderr + файл при `sys.frozen`. |
 
-### `app/platform`
+## Компоненты `app/providers`
 
-- `hotkey_listener.py` — глобальные клавиши (диктовка и command mode).
-- `output_controller.py` — вставка текста через буфер обмена и эмуляцию ввода.
-- `paths.py` — единый каталог пользовательских данных (`default_app_support_dir`: macOS Application Support, Windows `%APPDATA%`, прочие — `~/.ghostwriter` и т.д.).
-- `windows/` — опциональные вызовы только на `win32`: фокус перед вставкой (`focus.py`), политика окна дашборда (`ctk_window_policy.py`, `WS_EX_TOOLWINDOW`).
-- `macos_focus.py`, `macos_ax_selection.py`, `macos_accessibility.py` — интеграции macOS (фокус, выделение, подсказки по TCC).
-- `single_instance.py` — второй экземпляр: на Unix — неблокирующий `flock` на файле в каталоге поддержки; на Windows — именованный mutex (`CreateMutexW`).
-- `gui_availability.py` — проверки окружения (в т.ч. `GHOSTWRITER_HEADLESS`, предупреждения про Apple CLT Python).
-- `audio_devices.py` — перечисление/утилиты устройств ввода PortAudio.
+- **`faster_whisper_provider.py`** — локальный inference, VAD из пакета, опционально streaming.
+- **`openai_whisper_provider.py`** — API транскрипции.
+- **`openai_llm_provider.py`** — чат-комплишены OpenAI.
 
-### `app/ui`
+## Компоненты `app/platform`
 
-- `tray_app.py` — иконка в трее и окно настроек: на **macOS** при успешном импорте — **rumps** (NSMenu), иначе и на других ОС — **pystray**; окна — **CustomTkinter**.
-- `floating_pill.py` / `floating_pill_native.py` — плавающий индикатор статуса (процесс pill) и варианты отрисовки.
-- `pill_ipc.py` — формат команд pill → основной процесс.
-- `pill_process_entry.py` — точка входа `Process` для pill (без импорта `main`).
-- `dashboard_child_main.py` (CLI-точка) / `dashboard_process.py` / `main_dashboard.py` — дашборд в отдельном `Process`; путь к `config.json` и очередь фокуса передаются аргументами.
-- `status_bridge.py` — единый шлюз статусов в pill.
-- `ctk_macos_theme.py`, `macos_ctk_dock.py` — оформление CustomTkinter под macOS.
+| Модуль | Назначение |
+|--------|------------|
+| `paths.py` | `default_app_support_dir`, `single_instance_hint_path` — единая база путей данных. |
+| `hotkey_listener.py` | Слушатель pynput для диктовки и command mode. |
+| `output_controller.py` | Вставка текста, платформенные ветки. |
+| `single_instance.py` | Unix: `flock` на lock-файле; Windows: `CreateMutexW`. |
+| `gui_availability.py` | `GHOSTWRITER_HEADLESS`, предупреждения про окружение. |
+| `audio_devices.py` | Список устройств PortAudio. |
+| `macos_*.py` | Фокус, AX selection, accessibility-подсказки. |
+| `windows/focus.py` | Восстановление HWND переднего окна перед Ctrl+V. |
+| `windows/ctk_window_policy.py` | Поведение окна дашборда (toolwindow и т.п.). |
 
-## Потоки и процессы
+## Компоненты `app/ui`
 
-- Основной процесс Python обслуживает hotkey, STT, LLM и вывод.
-- При `floating_pill_enabled` и отсутствии headless-режима запускается дочерний `multiprocessing.Process` для отрисовки pill.
-- Дашборд (кнопка на pill или пункт **Dashboard** в меню трея) запускается `multiprocessing.Process` с `target=run_dashboard_process`; если процесс уже жив, в очередь может уйти команда поднять окно (`DASHBOARD_FOCUS_RAISE`).
+- **`tray_app.py`** — macOS: **rumps** при успешном импорте; иначе **pystray**; окна на **CustomTkinter**.
+- **`floating_pill.py`**, **`floating_pill_native.py`** — процесс pill и варианты UI.
+- **`pill_ipc.py`**, **`pill_process_entry.py`** — IPC и точка входа `Process` для pill.
+- **`dashboard_process.py`**, **`main_dashboard.py`**, **`dashboard_child_main.py`** — дашборд в отдельном процессе.
+- **`status_bridge.py`** — унификация статусов для трея и pill.
+- **`ctk_macos_theme.py`**, **`macos_ctk_dock.py`** — внешний вид под macOS.
 
 ## Конфигурация и секреты
 
-- Runtime-конфиг: `config/config.json`.
-- Секреты: пользовательский `.env.secrets` в каталоге поддержки приложения (на macOS см. `ConfigManager`), при разработке — локальный `.env` или окружение; минимум `OPENAI_API_KEY` для OpenAI-режимов.
-- Подробно: `docs/CONFIGURATION.md`.
+- Файл: **`config/config.json`** (в бандле копируется через `GhostWriter.spec`).
+- Секреты: `.env.secrets` в каталоге поддержки + слой `.env` и `os.environ` — см. `ConfigManager`.
+- Подробности полей: [CONFIGURATION.md](CONFIGURATION.md).
+
+## Сборка
+
+- Спецификация: **`GhostWriter.spec`** в корне (комментарии внутри файла про `SPECPATH`, `BUNDLE` только на Darwin).
+- Скрипт: **`build.py`** — альтернативный путь вызова PyInstaller с постобработкой plist на macOS.
+
+Общий чеклист для разработчика — в [../README.md](../README.md#сборка-pyinstaller).

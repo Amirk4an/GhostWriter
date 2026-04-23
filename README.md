@@ -1,35 +1,60 @@
 # Ghost Writer (VoiceFlow WL)
 
-Диктовка с глобальным хоткеем: запись с микрофона → STT (локальный **faster-whisper** или **OpenAI Whisper**) → опциональная постобработка через LLM → вставка текста в активное приложение. Запуск из консоли: `python3 main.py` (на macOS команды `python` часто нет в `PATH`). В трее — статус и меню; опционально плавающий индикатор (pill) и отдельный **Dashboard** (история, статистика, ключ API).
+Диктовка с глобальным хоткеем: запись с микрофона → STT (локальный **faster-whisper** или **OpenAI Whisper**) → опциональная постобработка через LLM → вставка текста в активное приложение.
 
-Подробности: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), все ключи конфига: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Запуск из консоли: `python3 main.py` (на macOS команды `python` часто нет в `PATH`). В трее — статус и меню; опционально плавающий индикатор (pill) и отдельный **Dashboard** (история, статистика, ключ API).
+
+**Документация:** [docs/README.md](docs/README.md) (указатель) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/CONFIGURATION.md](docs/CONFIGURATION.md) · [assets/models/README.md](assets/models/README.md)
 
 ## Требования
 
-- **macOS** — основная целевая платформа (TCC, вставка через AppleScript/System Events, трей через **rumps** при наличии).
-- **Windows** — поддерживается на уровне путей (`%APPDATA%\GhostWriter\`), single-instance mutex, трей **pystray**, вставка **Ctrl+V** и поднятие переднего окна (`app/platform/windows/`). Глобальные хоткеи — **pynput**; command mode чтения выделения пока только на macOS (см. `docs/CONFIGURATION.md`).
-- **Python 3.9+** (в репозитории удобно держать виртуальное окружение `.venv` в корне).
+- **macOS** — основная целевая платформа (TCC, вставка через AppleScript/System Events, трей через **rumps** при наличии, **PyObjC** из `requirements.txt`).
+- **Windows** — пути `%APPDATA%\GhostWriter\`, single-instance mutex, трей **pystray**, вставка **Ctrl+V** и поднятие переднего окна (`app/platform/windows/`). Глобальные хоткеи — **pynput**; command mode чтения выделения пока только на macOS (см. `docs/CONFIGURATION.md`).
+- **Linux и прочие Unix** — запуск возможен (те же зависимости Python, кроме macOS-специфичных пакетов); пути данных `~/.ghostwriter/` (см. `app/platform/paths.py`). Полировка UX и автовставка ориентированы на macOS/Windows.
+- **Python 3.9+**; в репозитории удобно держать `.venv` в корне.
 
-Каталог пользовательских данных (история, статистика, `.env.secrets`, лог собранного приложения на Windows/Linux) задаётся в `app/platform/paths.py` (`default_app_support_dir`).
+Каталог пользовательских данных (история, статистика, `.env.secrets`, часть логов frozen-сборки) задаётся в **`app/platform/paths.py`** (`default_app_support_dir`).
+
+### Основные зависимости Python
+
+| Пакет | Роль |
+|--------|------|
+| `faster-whisper`, `numpy`, `scipy` | Локальный STT |
+| `openai` | Облачный Whisper и LLM |
+| `sounddevice` | Захват аудио (PortAudio) |
+| `pynput`, `pyperclip` | Глобальные клавиши и буфер обмена |
+| `customtkinter`, `pillow` | UI дашборда и настроек |
+| `pystray` | Трей (и fallback на macOS) |
+| `rumps` (только Darwin) | Нативный трей macOS |
+| `python-dotenv` | `.env` / `.env.secrets` |
+| `pyobjc-*` (только Darwin) | Доступность и интеграции macOS |
+
+Полный список версий — в [`requirements.txt`](requirements.txt). Тесты: `pytest`.
 
 ### Автовставка
 
-- **macOS (Cmd+V):** чтобы система разрешила программную вставку (**pynput** / System Events), в **Системные настройки → Конфиденциальность и безопасность → Универсальный доступ** включите переключатель для **того же приложения**, из которого запущен Ghost Writer (часто **Terminal**, **Cursor**, **iTerm** или интерпретатор **Python**). При ошибке автоматизации (**1002**) может понадобиться разрешить управление **System Events**. Если текст в поле не попал — он уже в буфере обмена, нажмите **Cmd+V** вручную.
-- **Windows (Ctrl+V):** перед вставкой поднимается переднее окно (`app/platform/windows/focus.py`). При сбоях проверьте, что целевое приложение допускает вставку из буфера; текст дублируется через **pyperclip** так же, как на macOS.
+- **macOS (Cmd+V):** **Системные настройки → Конфиденциальность и безопасность → Универсальный доступ** — разрешите приложение, из которого запущен Ghost Writer (**Terminal**, **Cursor**, **iTerm**, **Python**). Ошибка **1002** / System Events — проверьте права для **System Events**. При сбое текст часто уже в буфере — **Cmd+V** вручную.
+- **Windows (Ctrl+V):** перед вставкой поднимается переднее окно (`app/platform/windows/focus.py`). Текст кладётся через **pyperclip**; целевое приложение должно принимать вставку из буфера.
 
 ## Быстрый старт
 
 1. Клонируйте репозиторий и перейдите в корень проекта.
 
-2. Зависимости Python:
+2. Виртуальное окружение и зависимости:
 
    ```bash
    python3 -m venv .venv
+   # macOS / Linux:
    source .venv/bin/activate
+   # Windows (cmd):
+   .venv\Scripts\activate.bat
+   # Windows (PowerShell):
+   .venv\Scripts\Activate.ps1
+
    pip install -r requirements.txt
    ```
 
-3. Секреты для OpenAI (если используете облачные STT/LLM). Удобнее всего задать ключ на вкладке **Settings** дашборда — файл `.env.secrets` окажется в каталоге поддержки приложения (на macOS: `~/Library/Application Support/GhostWriter/`, на Windows: `%APPDATA%\GhostWriter\`). При разработке можно положить `.env` в корень репозитория или рядом с `config/config.json`:
+3. Секреты OpenAI (облачные STT/LLM). Удобнее задать ключ на вкладке **Settings** дашборда — запись в `.env.secrets` в каталоге поддержки (macOS: `~/Library/Application Support/GhostWriter/`, Windows: `%APPDATA%\GhostWriter\`). При разработке можно использовать `.env` в корне репозитория или рядом с `config/config.json`:
 
    ```bash
    OPENAI_API_KEY=sk-...
@@ -38,57 +63,69 @@
 4. Запуск:
 
    ```bash
-   source .venv/bin/activate
    python3 main.py
    ```
 
-Конфигурация: `config/config.json`. После ручного редактирования JSON перезапустите приложение (часть полей дашборд может менять сам — см. код `ConfigManager`).
+Конфигурация по умолчанию: **`config/config.json`**. После ручного редактирования JSON перезапустите приложение (отдельные поля может менять дашборд через `ConfigManager`).
 
 ## Структура репозитория
 
 | Путь | Назначение |
 |------|------------|
-| `main.py` | Точка входа: `multiprocessing.freeze_support()`, режим `spawn`, вызов `run_voiceflow_application()`. |
-| `app/main_runtime.py` | Сборка пайплайна: конфиг, провайдеры STT/LLM, аудио, вывод, `AppController`, дочерние процессы pill и дашборда, хоткеи, трей, обработка сигналов. |
-| `app/core/` | Оркестратор (`app_controller`), аудио, конфиг, фабрика провайдеров, LLM, интерфейсы, **история** (`history_manager`), **статистика** (`stats_manager`), глоссарий, логирование. |
-| `app/providers/` | Реализации STT и LLM (faster-whisper, OpenAI). |
-| `app/platform/` | Глобальные клавиши, вывод в систему, `paths.py` (каталог данных), интеграции ОС, один экземпляр: `flock` на Unix или именованный mutex на Windows (`single_instance.py`). |
-| `app/ui/` | Трей, pill, дашборд (отдельные процессы), мост статусов. |
-| `config/` | `config.json`, пользовательский глоссарий и связанные данные. |
+| `main.py` | Точка входа: `freeze_support()`, режим `spawn`, защита от дочернего процесса, вызов `run_voiceflow_application()`. |
+| `app/main_runtime.py` | Сборка пайплайна: конфиг, провайдеры STT/LLM, аудио, вывод, `AppController`, процессы pill и дашборда, хоткеи, трей, сигналы `SIGINT`/`SIGTERM`. |
+| `app/core/` | `app_controller`, `audio_engine`, `config_manager`, `provider_factory`, `llm_processor`, `interfaces`, `history_manager`, `stats_manager`, `glossary_manager`, `mic_meter_controller`, `hotkey_spec`, `logging_config`. |
+| `app/providers/` | STT и LLM: faster-whisper, OpenAI Whisper, OpenAI LLM. |
+| `app/platform/` | Хоткеи, вывод, `paths.py`, macOS/Windows-модули, `single_instance`, `gui_availability`, `audio_devices`. |
+| `app/ui/` | Трей, pill, дашборд, IPC статусов. |
+| `config/` | `config.json`, глоссарий и связанные файлы. |
 | `tests/` | Pytest. |
-| `GhostWriter.spec` | Сборка PyInstaller (данные faster-whisper/VAD, `assets/models` и т.д.). |
+| `GhostWriter.spec` | PyInstaller: `datas` (config, customtkinter, faster_whisper, `assets/models`), `hiddenimports`, на Darwin — `BUNDLE` → `GhostWriter.app`. |
+| `build.py` | Альтернативный сценарий сборки через API PyInstaller + правки `Info.plist` (см. docstring в файле). |
 
 ## Разработка и тесты
 
 ```bash
-source .venv/bin/activate
+source .venv/bin/activate   # или .venv\Scripts\activate на Windows
 pytest
 ```
 
-## Сборка .app (PyInstaller)
+## Сборка (PyInstaller)
 
-Сборка из корня репозитория (после `pip install -r requirements.txt` и установки `pyinstaller`):
+### macOS — каталог + `.app`
+
+Из корня репозитория:
 
 ```bash
 pyinstaller GhostWriter.spec --clean
 ```
 
-В [`GhostWriter.spec`](GhostWriter.spec) в `Analysis(..., datas=...)` через `collect_data_files('faster_whisper')` подключаются ресурсы **faster-whisper**, в том числе **VAD** (`silero_vad_v6.onnx`). Без этого локальный STT с `vad_filter=True` в собранном `.app` падает с `NoSuchFile` для ONNX.
+Артефакты: `dist/GhostWriter/` (COLLECT) и **`dist/GhostWriter.app`** (BUNDLE на Darwin).
 
-В `BUNDLE` заданы ключи `Info.plist`: **LSUIElement** (основное приложение без иконки в Dock), описания для **микрофона**, **Apple Events** и **универсального доступа** (запросы TCC). Иконка бандла: положите `icon.icns` в корень и укажите `icon='icon.icns'` в `BUNDLE`, если нужна своя иконка.
+В [`GhostWriter.spec`](GhostWriter.spec) через `collect_data_files('faster_whisper')` подтягиваются ресурсы **faster-whisper**, в т.ч. **VAD** (`silero_vad_v6.onnx`). Без этого локальный STT с `vad_filter=True` в сборке может упасть с `NoSuchFile` для ONNX.
 
-Офлайн-веса faster-whisper: блок **`stt_local`** в `config.json` (см. [docs/CONFIGURATION.md](docs/CONFIGURATION.md)) и каталог **`assets/models/`** — при сборке, если папка есть, она попадает в `datas`. Подробности в [assets/models/README.md](assets/models/README.md).
+`Info.plist`: **LSUIElement**, описания для микрофона, Apple Events и универсального доступа. Своя иконка: `icon.icns` в корень и `icon='icon.icns'` в `BUNDLE`.
 
-Второй экземпляр блокируется так: на **macOS / Linux** — неблокирующий **`flock`** на файле `single_instance.lock` в каталоге данных (`default_app_support_dir`, см. `app/platform/paths.py`); на **Windows** — именованный **mutex** в сессии пользователя (`Local\\GhostWriter_<subdir>`). Сообщения в stderr при отказе — в `app/main_runtime.py`.
+### Windows — каталог `dist/GhostWriter/`
 
-### Логи собранного приложения
+Та же команда `pyinstaller GhostWriter.spec --clean` на Windows формирует **onedir**-каталог без `.app` (см. комментарий в spec). Запуск: `dist\GhostWriter\GhostWriter.exe` (имя задаётся в `EXE` в spec).
 
-При запуске из **PyInstaller** (`sys.frozen`) логи дублируются в файл на диске (см. `app/core/logging_config.py`):
+Офлайн-веса: **`stt_local`** в конфиге и **`assets/models/`** — при наличии папки она попадает в `datas`. Подробнее: [assets/models/README.md](assets/models/README.md).
+
+### Один экземпляр
+
+- **macOS / Linux:** неблокирующий `flock` на `single_instance.lock` в `default_app_support_dir`.
+- **Windows:** именованный mutex `Local\GhostWriter_<subdir>` (см. `app/platform/single_instance.py`). Тексты ошибок — `app/main_runtime.py`.
+
+### Логи frozen-сборки (`sys.frozen`)
+
+См. `app/core/logging_config.py` (`_frozen_log_file`):
 
 - **macOS:** `~/Library/Logs/GhostWriter/app.log`
-- **Windows и прочие:** `%APPDATA%\GhostWriter\app.log` (или `~/.ghostwriter/app.log` на Unix без отдельного каталога Logs — как в `_frozen_log_file()`)
+- **Windows:** `%APPDATA%\GhostWriter\app.log`
+- **прочие Unix:** `~/.ghostwriter/app.log`
 
-Удобно для отладки windowed-сборки, когда stderr недоступен. Запуск бинарника из терминала даёт тот же вывод в консоль:
+Запуск `.app` из терминала для отладки:
 
 ```bash
 ./dist/GhostWriter.app/Contents/MacOS/GhostWriter
@@ -96,7 +133,7 @@ pyinstaller GhostWriter.spec --clean
 
 ## Данные на диске
 
-Каталог задаётся **`default_app_support_dir`** в `app/platform/paths.py` (параметр white-label `support_subdir`, по умолчанию `GhostWriter`):
+Каталог: **`default_app_support_dir`** в `app/platform/paths.py` (white-label подкаталог по умолчанию `GhostWriter` — при переименовании продукта ищите ту же строку в коде рядом с `support_subdir`).
 
 | Платформа | Типичный путь |
 |-----------|----------------|
@@ -104,29 +141,24 @@ pyinstaller GhostWriter.spec --clean
 | Windows | `%APPDATA%\GhostWriter\` |
 | Linux и прочие Unix | `~/.ghostwriter/` |
 
-В нём обычно лежат:
-
-- `.env.secrets` — ключи API (запись из дашборда);
-- `history.db` — локальная история диктовок (SQLite), если `enable_history` в конфиге;
-- `stats.json` — агрегированная статистика для дашборда;
-- `single_instance.lock` — файловый lock второго экземпляра (Unix; на Windows эксклюзивность — через mutex, не через этот файл);
-- при **frozen**-сборке на не-macOS — также **`app.log`** рядом с данными (см. выше).
+Содержимое: `.env.secrets`, `history.db` (если `enable_history`), `stats.json`, на Unix — `single_instance.lock`; на не-macOS frozen — ещё **`app.log`**.
 
 ## Устранение неполадок
 
 ### Микрофон не записывает
 
-В режиме **консоли** (`python3 main.py`): на **macOS** в **Конфиденциальность и безопасность → Микрофон** включите доступ для **Terminal** (или IDE), из которой запущен процесс. На **Windows 10/11** — **Параметры → Конфиденциальность → Микрофон** для классических и UWP-приложений.
-
-В режиме **собранного .app** (macOS): разрешите микрофон для **GhostWriter** (или имени вашего бандла) — запрос текста подставляется из `Info.plist` при сборке. Проверьте **Звук → Ввод** и при необходимости поле `audio_input_device` в `config.json` (индекс устройства PortAudio; `null` — устройство по умолчанию).
+- **macOS (консоль):** микрофон для **Terminal** / IDE. **Собранный .app:** для имени бандла из `Info.plist`.
+- **Windows:** **Параметры → Конфиденциальность → Микрофон** для классических приложений.
+- Везде: проверьте устройство ввода в ОС и при необходимости `audio_input_device` в `config.json` (`null` — по умолчанию PortAudio).
 
 ### Глобальный хоткей не срабатывает
 
-Нужны **Универсальный доступ** и при необходимости **Мониторинг ввода** для того же процесса: при запуске из терминала — для **Terminal** / **Python**; при запуске **.app** — для приложения из бандла. На клавиатурах Mac для **F8** иногда нужно **Fn+F8**.
+- **macOS:** **Универсальный доступ** и при необходимости **Мониторинг ввода** для того же процесса; для **F8** иногда **Fn+F8**.
+- **Windows:** при отсутствии реакции проверьте конфликт с другими хуками и при необходимости запуск от администратора (редко нужно в обычной сессии).
 
-### `command not found: compdef` при входе в shell (OpenClaw)
+### `command not found: compdef` (OpenClaw / zsh)
 
-Сообщение относится к **`~/.openclaw/completions/openclaw.zsh`**: в конце файла вызывается `compdef`, которая доступна только после инициализации completions в Zsh. Это не ошибка Ghost Writer.
+Относится к **`~/.openclaw/completions/openclaw.zsh`**, не к Ghost Writer.
 
 ## Лицензия и вклад
 

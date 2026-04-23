@@ -1,77 +1,91 @@
 # Конфигурация Ghost Writer
 
-Основной конфиг хранится в `config/config.json`. Загрузка и значения по умолчанию для отсутствующих ключей — в `app/core/config_manager.py` (`AppConfig`, метод `_validate`).
+Файл по умолчанию: **`config/config.json`**. Источник истины для обязательных ключей и значений по умолчанию — **`app/core/config_manager.py`** (`AppConfig`, метод `_validate`).
 
-## Обязательные поля
+См. также: [ARCHITECTURE.md](ARCHITECTURE.md) · [../README.md](../README.md)
 
-В JSON **должны** присутствовать ключи (иначе `ConfigManager` выбросит ошибку при старте):
+## Обязательные поля JSON
 
-- `app_name` — имя приложения в UI.
-- `primary_color` — основной цвет (hex).
-- `hotkey` — хоткей диктовки (например, `f8`); при чтении нормализуется к нижнему регистру, пробелы убираются.
-- `system_prompt` — базовый промпт постобработки текста.
-- `model_provider` — провайдер LLM (сейчас используется `openai`).
-- `whisper_backend` — backend STT: `local` или `openai`.
-- `whisper_model` — модель OpenAI Whisper (например, `whisper-1`).
-- `local_whisper_model` — локальная модель faster-whisper (`tiny`, `base`, `small`, …) или имя каталога весов при `stt_local.model_source: bundle`.
-- `llm_model` — модель LLM (например, `gpt-4o-mini`).
-- `llm_enabled` — включить/выключить LLM-постобработку.
-- `sample_rate` — частота дискретизации микрофона.
-- `channels` — число каналов.
-- `chunk_size` — размер аудио-чанка.
-- `max_parallel_jobs` — макс. количество задач обработки (в валидации не меньше 1).
+При отсутствии любого из перечисленных ключей старт приложения завершится ошибкой валидации:
+
+| Ключ | Описание |
+|------|-----------|
+| `app_name` | Имя в UI и трее (white-label). |
+| `primary_color` | HEX цвета для pill/дашборда. |
+| `hotkey` | Хоткей диктовки (например `f8`); нормализация: нижний регистр, без пробелов. |
+| `system_prompt` | Базовый промпт LLM-постобработки. |
+| `model_provider` | Сейчас ожидается `openai` (нижний регистр при чтении). |
+| `whisper_backend` | `local` или `openai`. |
+| `whisper_model` | Имя модели API (например `whisper-1`). |
+| `local_whisper_model` | Имя модели/каталога для faster-whisper. |
+| `llm_model` | Идентификатор модели чата OpenAI. |
+| `llm_enabled` | `true` / `false` — включать ли постобработку LLM. |
+| `sample_rate` | Гц, обычно `16000`. |
+| `channels` | Чаще `1` (моно). |
+| `chunk_size` | Размер чанка записи (сэмплы). |
+| `max_parallel_jobs` | ≥ 1 после валидации. |
 
 ## Блок `stt_local` (опционально)
 
-Источник весов и параметры **CTranslate2** для локального faster-whisper:
+Параметры локального **faster-whisper** (CTranslate2):
 
-- `model_source`: `cache` (скачивание в кэш Hugging Face при первом использовании), `bundle` (каталог `assets/models/<local_whisper_model>/` внутри бандла PyInstaller или в корне репозитория при разработке), `custom_path` (абсолютный путь к каталогу весов).
-- `custom_model_path` — обязателен при `model_source: custom_path`.
-- `device` — например `cpu` (рекомендуется для предсказуемости на macOS).
-- `compute_type` — например `int8` или `float16` (подбирается под целевое железо).
+| Поле | Значения |
+|------|-----------|
+| `model_source` | `cache` — HF-кэш; `bundle` — `assets/models/<local_whisper_model>/`; `custom_path` — свой каталог. |
+| `custom_model_path` | Обязателен при `custom_path`. |
+| `device` | Например `cpu`, `cuda` (зависит от сборки CTranslate2). |
+| `compute_type` | Например `int8`, `float16`. |
 
-Если блок `stt_local` отсутствует или не объект, используются значения по умолчанию: `cache`, пустой путь, `cpu`, `int8`.
+Если блок отсутствует или не объект — по умолчанию: `cache`, пустой путь, `cpu`, `int8`.
 
 ## Опциональные поля
 
-- `audio_input_device` — индекс устройства ввода PortAudio (`null` = вход по умолчанию ОС). Индексы на разных машинах различаются: для переносимости чаще оставляют `null` и при необходимости меняют значение вручную в `config.json` после проверки списка устройств в системе или в логах.
-- `floating_pill_enabled` — включение плавающего индикатора (по умолчанию `true`, если ключ отсутствует).
-- `command_mode_hotkey` — хоткей режима редактирования выделенного текста.
-- `command_mode_system_prompt` — отдельный промпт для command mode.
-- `app_context_prompts` — словарь промптов по имени приложения (должен быть JSON-объектом).
-- `user_glossary_path` — путь к JSON-словарю терминов (по умолчанию `user_glossary.json`).
-- `hands_free_enabled` — режим «без рук».
-- `short_tap_max_ms` — лимит короткого тапа (не ниже 50 при отсутствии/меньшем значении).
-- `latch_arm_window_ms` — окно для latch (не ниже 100).
-- `latch_stop_double_down_ms` — таймаут двойного нажатия для остановки (не ниже 100).
-- `streaming_stt_enabled` — включение стримингового STT.
-- `whisper_mode_boost_input` — усиление тихого входа в whisper-режиме.
-- `language` — язык распознавания (`ru`, `en`, …). Особые случаи:
-  - если ключа **нет** в JSON, по умолчанию используется **`ru`**;
-  - `null`, пустая строка или значения `auto` / `detect` / `multi` (без учёта регистра) трактуются как **автоопределение** (внутри приложения — `None` для провайдера).
-- `enable_history` — сохранять историю успешных диктовок в локальную SQLite. По умолчанию `true`; при `false` новые записи не пишутся (уже сохранённые остаются, пока не очистите историю в дашборде).
+| Ключ | По умолчанию / заметки |
+|------|-------------------------|
+| `audio_input_device` | `null` — устройство по умолчанию PortAudio; иначе целый индекс. |
+| `floating_pill_enabled` | `true` |
+| `command_mode_hotkey` | `""` — command mode выключен, если пусто. |
+| `command_mode_system_prompt` | Текст по умолчанию в `AppConfig` в коде. |
+| `app_context_prompts` | `{}` или объект; ключи — подстроки/имена приложений с macOS. |
+| `user_glossary_path` | `user_glossary.json` |
+| `hands_free_enabled` | `true` |
+| `short_tap_max_ms` | `220`, минимум `50` |
+| `latch_arm_window_ms` | `450`, минимум `100` |
+| `latch_stop_double_down_ms` | `450`, минимум `100` |
+| `streaming_stt_enabled` | `false` |
+| `whisper_mode_boost_input` | `false` |
+| `language` | Если ключа нет — **`ru`**. `null`, `""`, `auto`, `detect`, `multi` → автоопределение (`None` для STT). |
+| `enable_history` | `true` |
 
-Пути к БД истории, `stats.json`, `.env.secrets` и файловому lock второго экземпляра задаётся функцией `default_app_support_dir` в `app/platform/paths.py`:
+## Пути данных и секретов
+
+Функция **`default_app_support_dir`** в `app/platform/paths.py`:
 
 - **macOS:** `~/Library/Application Support/GhostWriter/`
-- **Windows:** `%APPDATA%\GhostWriter\` (обычно `C:\Users\<user>\AppData\Roaming\GhostWriter\`)
-- **прочие Unix:** `~/.ghostwriter/` (имя каталога из `support_subdir`, по умолчанию `GhostWriter` → `.ghostwriter`).
+- **Windows:** `%APPDATA%\GhostWriter\`
+- **прочие Unix:** `~/.ghostwriter/` (имя из `support_subdir`: `GhostWriter` → `.ghostwriter`)
 
-На Windows второй экземпляр блокируется **именованным mutex** в сессии пользователя (не отдельным файлом); сообщение в консоли при отказе см. в `main_runtime.py`.
+Там же лежат **`history.db`**, **`stats.json`**, **`.env.secrets`**, на Unix — **`single_instance.lock`**. На Windows второй экземпляр блокируется **mutex**, не файлом.
 
-### Command mode (редактирование выделения)
+### White-label
 
-Чтение выделенного текста в активном поле реализовано через **Accessibility API только на macOS** (`macos_ax_selection.py`). На **Windows и Linux** `get_focused_selected_text` возвращает `None`, поэтому command mode там **пока недоступен**, пока не будет отдельной реализации (например UI Automation на Windows).
+Имя подкаталога **`GhostWriter`** в коде передаётся как `support_subdir` в менеджеры путей и single-instance. Для полного переименования продукта нужно согласованно заменить эту строку в **`paths.py`**, **`single_instance.py`**, **`logging_config.py`** (подкаталог логов на macOS) и при необходимости в `GhostWriter.spec` / `Info.plist`.
 
-### Системный трей
+## Поведение на разных ОС
 
-На macOS по умолчанию используется **rumps** (нативное меню); при недоступности и на **Windows** — **pystray** (контекстное меню по правому клику на иконку в области уведомлений).
+### Command mode (редактирование выделения по голосу)
+
+Чтение выделения — **только macOS** (`macos_ax_selection.py`). На Windows и Linux command mode **недоступен**, пока не реализованы нативные аналоги.
+
+### Трей
+
+**rumps** на macOS при успешном импорте; иначе **pystray** (в т.ч. Windows).
 
 ### Глобальные хоткеи (Windows)
 
-Слушатель строится на **pynput**. На Windows при отсутствии срабатывания проверьте, не требуется ли запуск от имени администратора для низкоуровневого перехвата в отдельных средах; в типичной пользовательской сессии права обычно достаточны.
+**pynput**; при проблемах см. раздел «Рекомендации» в [../README.md](../README.md#устранение-неполадок).
 
-## Пример
+## Пример `config.json`
 
 ```json
 {
@@ -116,28 +130,27 @@
 
 ## Диагностика микрофона
 
-1. **macOS:** **Системные настройки → Конфиденциальность и безопасность → Микрофон** — включите доступ для **Terminal** (или IDE), из которой запущен `python3 main.py`. **Windows 10/11:** **Параметры → Конфиденциальность и безопасность → Микрофон** — разрешите доступ для настольных приложений и при необходимости для конкретного Python/терминала.
-2. В `config/config.json` для `audio_input_device` задайте осмысленный индекс или `null` (см. выше про индексы PortAudio).
-3. В логах при остановке записи пишутся оценки `peak` / `rms` — по ним видно, был ли ненулевой сигнал.
+1. **macOS:** **Конфиденциальность → Микрофон** для терминала/IDE или для бандла приложения.
+2. **Windows 10/11:** **Параметры → Конфиденциальность и безопасность → Микрофон**.
+3. **`audio_input_device`** в JSON — индекс PortAudio или `null`.
+4. В логах после записи смотрите **`peak`** / **`rms`**.
 
-## Переменные окружения и API-ключ
+## Переменные окружения
 
-Приоритет чтения `OPENAI_API_KEY` (и других секретов через `ConfigManager`):
+### Приоритет `OPENAI_API_KEY`
 
-1. Файл **`.env.secrets`** в каталоге поддержки приложения (см. раздел про пути выше: на Windows — под `%APPDATA%\GhostWriter\`, на macOS — `~/Library/Application Support/GhostWriter/`). Туда же пишет вкладка **Settings** дашборда.
-2. Локальный **`.env`** рядом с `config.json` или в текущем каталоге (удобно при разработке).
+1. `.env.secrets` в каталоге поддержки приложения.
+2. `.env` рядом с `config.json` или в текущей рабочей директории.
 3. Переменные окружения процесса.
 
-В `.env` при разработке обычно достаточно:
+### Прочее
 
-- `OPENAI_API_KEY=...` — для облачных режимов OpenAI (STT/LLM).
+| Переменная | Назначение |
+|------------|------------|
+| `GHOSTWRITER_HEADLESS=1` | Не поднимать Tk/CustomTkinter (pill, дашборд из рантайма). Для cron/launchd без дисплея. |
 
-Дополнительно (не в `.env` обязательно, можно задать в `launchd`/shell):
+## Рекомендации
 
-- `GHOSTWRITER_HEADLESS=1` — не поднимать окна Tk/CustomTkinter (дашборд, pill на Tk). Нужно для **cron**, **launchd без Aqua** и других фоновых процессов без доступа к оконному серверу; иначе возможен `Tcl_Panic` в `TkpInit`. В этом режиме pill отключается, дашборд не стартует из рантайма.
-
-## Рекомендации по настройке
-
-- Для слабых машин используйте меньшую локальную модель (`tiny`/`base`).
-- Если используете OpenAI STT/LLM, проверьте доступ к сети и валидность API-ключа.
-- После изменения `config/config.json` перезапустите приложение.
+- Слабое железо — модели `tiny` / `base`.
+- OpenAI-режимы — сеть и валидный ключ.
+- После правок **`config.json`** перезапустите процесс приложения.
