@@ -33,8 +33,10 @@ jobs:
         run: python -m PyInstaller GhostWriter.spec --clean --noconfirm
 
       - name: Upload artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: GhostWriter-${{ runner.os }}
           path: dist/
-          retention-days: 7
+          retention-days: 1
+          compression-level: 9
