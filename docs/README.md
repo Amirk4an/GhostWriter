@@ -5,8 +5,8 @@
 | Документ | Содержание |
 |----------|------------|
 | [../README.md](../README.md) | Обзор продукта, быстрый старт, структура репозитория, сборка PyInstaller, данные на диске, типовые проблемы. |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Пайплайн диктовки, модули `app/core`, `app/providers`, `app/platform`, `app/ui`, процессы и очереди. |
-| [CONFIGURATION.md](CONFIGURATION.md) | Все ключи `config/config.json`, секреты, переменные окружения, различия macOS / Windows / Linux. |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Пайплайн диктовки и дневника, модули `app/core`, `app/providers`, `app/platform`, `app/ui`, процессы и очереди. |
+| [CONFIGURATION.md](CONFIGURATION.md) | Все ключи `config/config.json`, `stt_local`, секреты, переменные окружения, различия macOS / Windows / Linux. |
 | [../assets/models/README.md](../assets/models/README.md) | Офлайн-веса faster-whisper для режима `stt_local.model_source: bundle`. |
 
 ## Связь с кодом

@@ -1304,9 +1304,29 @@
 		<data>
 		JgASNtvYHz5SluEzRt3o4j2uaJQ=
 		</data>
+		<key>Resources/attrs-26.1.0.dist-info/INSTALLER</key>
+		<data>
+		16AxQdXWseiLa1nvCLZoHfISxZk=
+		</data>
+		<key>Resources/attrs-26.1.0.dist-info/METADATA</key>
+		<data>
+		iQaCcswdw0DY/ZEKYr4kHEJBQzk=
+		</data>
+		<key>Resources/attrs-26.1.0.dist-info/RECORD</key>
+		<data>
+		xYKq0uR8AIYgli0Efv7lJxWimsg=
+		</data>
+		<key>Resources/attrs-26.1.0.dist-info/WHEEL</key>
+		<data>
+		wEabd73GapD1T2RWUio4TH2Scow=
+		</data>
+		<key>Resources/attrs-26.1.0.dist-info/licenses/LICENSE</key>
+		<data>
+		JD6d0DjT1oxn1CwMS6gGIsKlYkY=
+		</data>
 		<key>Resources/base_library.zip</key>
 		<data>
-		MlsdCSC/D5yPFwkobSClX0/+yA0=
+		eOYXFr3f3IN+5PCo5TEs5TWupeM=
 		</data>
 		<key>Resources/certifi/cacert.pem</key>
 		<data>
@@ -1316,29 +1336,9 @@
 		<data>
 		2jmj7l5rSw0yVb/vlWAYkK/YBwk=
 		</data>
-		<key>Resources/click-8.3.2.dist-info/INSTALLER</key>
-		<data>
-		16AxQdXWseiLa1nvCLZoHfISxZk=
-		</data>
-		<key>Resources/click-8.3.2.dist-info/METADATA</key>
-		<data>
-		ZfjV8TxKgqscVr4fNZC44wbIi2o=
-		</data>
-		<key>Resources/click-8.3.2.dist-info/RECORD</key>
-		<data>
-		RRLiPwgLeOElCtc7AdK0JwmJfiY=
-		</data>
-		<key>Resources/click-8.3.2.dist-info/WHEEL</key>
-		<data>
-		kYyWz0uH2EYWFAEoT5v4EcVrX88=
-		</data>
-		<key>Resources/click-8.3.2.dist-info/licenses/LICENSE.txt</key>
-		<data>
-		b7EeAv/g95t08cYDS0rm53F6afg=
-		</data>
 		<key>Resources/config/config.json</key>
 		<data>
-		U4zH3te1hb6bWb2CKpFRNmeh3pc=
+		v7h1K+Xl4Rg87l2ncwcW6wUJagM=
 		</data>
 		<key>Resources/config/user_glossary.json</key>
 		<data>
@@ -1552,6 +1552,190 @@
 		<data>
 		eEHOuYpZLB0vKGVIWGZOh5rH8+o=
 		</data>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/INSTALLER</key>
+		<data>
+		16AxQdXWseiLa1nvCLZoHfISxZk=
+		</data>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/LICENSE</key>
+		<data>
+		K4uBUimqimHkg/tLoFiLi2xJGJA=
+		</data>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/METADATA</key>
+		<data>
+		AcaX/0zrYXMvWCF6Gr+zFeD/hwg=
+		</data>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/RECORD</key>
+		<data>
+		ZU6GWDnKoBC8uoDJo/J3YTVfLoQ=
+		</data>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/WHEEL</key>
+		<data>
+		DpoPfC3pu36qtxXjKouQjGq6Fs0=
+		</data>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/top_level.txt</key>
+		<data>
+		TmH5Jk3nR4O1kkJJvP4bBvF4ua0=
+		</data>
+		<key>Resources/jsonschema-4.23.0.dist-info/INSTALLER</key>
+		<data>
+		16AxQdXWseiLa1nvCLZoHfISxZk=
+		</data>
+		<key>Resources/jsonschema-4.23.0.dist-info/METADATA</key>
+		<data>
+		PNqk6/rHPM62cj8mRpZz4Z3s7ys=
+		</data>
+		<key>Resources/jsonschema-4.23.0.dist-info/RECORD</key>
+		<data>
+		vchVbfHyCBh91+pcAG0Ab2+DWG0=
+		</data>
+		<key>Resources/jsonschema-4.23.0.dist-info/WHEEL</key>
+		<data>
+		tnY1YV7vfoaddPSBO13FdhBIJd0=
+		</data>
+		<key>Resources/jsonschema-4.23.0.dist-info/entry_points.txt</key>
+		<data>
+		75MWS//l7Xpqq8VX22yrchAI6RE=
+		</data>
+		<key>Resources/jsonschema-4.23.0.dist-info/licenses/COPYING</key>
+		<data>
+		LeGgo2dJAyOKZkrOXTrMZqfVRsc=
+		</data>
+		<key>Resources/jsonschema/benchmarks/issue232/issue.json</key>
+		<data>
+		ZAVFY9OobPq/rNuD8EHfWVIlI38=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/metaschema.json</key>
+		<data>
+		RXTTEh1jJszWjDi611tVwqbA4Pc=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/applicator</key>
+		<data>
+		luJIpkvxg472VjgCpWMsBydJ6zM=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/content</key>
+		<data>
+		+K3Fd5pzzBnldIBXlQ3+a4ea0fA=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/core</key>
+		<data>
+		w3pXBIpZrLF+HaFfP5AP70mRMfc=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/format</key>
+		<data>
+		kyQwU4yn3lrn0iEx5QAjamwwXzY=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/meta-data</key>
+		<data>
+		vYGZYZc013w4qhhIYEw00pT8A+I=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/validation</key>
+		<data>
+		bOtmowu4lRsklhyLumw07gYKr2U=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/metaschema.json</key>
+		<data>
+		ASH+wkTSWQtfBM2B4+4Xrq48eYE=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/applicator</key>
+		<data>
+		8N9zG2jlY68eDXtao4/7JGUdj4o=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/content</key>
+		<data>
+		vCgCBwNazQAs2DqBo1pJujtunzk=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/core</key>
+		<data>
+		HsG0ODAQNqct6lUYXnrS8JBr68c=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/format-annotation</key>
+		<data>
+		Sjglfg0EO7qtaKIym1DnKNYntGw=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/format-assertion</key>
+		<data>
+		BvKmRVm3mkQJO5n0ceOUJ77oJxk=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/meta-data</key>
+		<data>
+		hvuOorCWC28HEAOebDuW1xZOPF4=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/unevaluated</key>
+		<data>
+		7HceHm5cJsYN6+4TvDvhxdD3xT0=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/validation</key>
+		<data>
+		BA0remnwUFPEkHjmW+cXSVQ2LAQ=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft3/metaschema.json</key>
+		<data>
+		WGobakG8Y5OhlxerWAsWvuc4XX0=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft4/metaschema.json</key>
+		<data>
+		SVqctdATzP1wdT3OXEr/mKlrjCw=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft6/metaschema.json</key>
+		<data>
+		ba+e0RJTf7jP7I7oNSrwo9D/E3c=
+		</data>
+		<key>Resources/jsonschema_specifications/schemas/draft7/metaschema.json</key>
+		<data>
+		r9OAhHnoRN8DJtxbQRsCMNfyXrg=
+		</data>
+		<key>Resources/litellm-1.83.12.dist-info/INSTALLER</key>
+		<data>
+		16AxQdXWseiLa1nvCLZoHfISxZk=
+		</data>
+		<key>Resources/litellm-1.83.12.dist-info/METADATA</key>
+		<data>
+		2Z917btmRZVmDu1mriHmzGF6Hro=
+		</data>
+		<key>Resources/litellm-1.83.12.dist-info/RECORD</key>
+		<data>
+		XZA4SSZppd+A3DNbTN5hokUfV/g=
+		</data>
+		<key>Resources/litellm-1.83.12.dist-info/REQUESTED</key>
+		<data>
+		2jmj7l5rSw0yVb/vlWAYkK/YBwk=
+		</data>
+		<key>Resources/litellm-1.83.12.dist-info/WHEEL</key>
+		<data>
+		BkXOW7RrIdUvd1t++eonpyKIvCc=
+		</data>
+		<key>Resources/litellm-1.83.12.dist-info/entry_points.txt</key>
+		<data>
+		o96MLA6ynOhNrdnoRxymJXkCgHE=
+		</data>
+		<key>Resources/litellm-1.83.12.dist-info/licenses/LICENSE</key>
+		<data>
+		ozvIxDLAjG4KzbacWqCZg6S1iiw=
+		</data>
+		<key>Resources/markupsafe-3.0.3.dist-info/INSTALLER</key>
+		<data>
+		16AxQdXWseiLa1nvCLZoHfISxZk=
+		</data>
+		<key>Resources/markupsafe-3.0.3.dist-info/METADATA</key>
+		<data>
+		itog3Xg6mWHYdwHyzSWwiA8jmT4=
+		</data>
+		<key>Resources/markupsafe-3.0.3.dist-info/RECORD</key>
+		<data>
+		OnDVusyIjOJIJxtURfH+Pif8vWo=
+		</data>
+		<key>Resources/markupsafe-3.0.3.dist-info/WHEEL</key>
+		<data>
+		YHIquE/vFPrBAP910CRy+WEDXYc=
+		</data>
+		<key>Resources/markupsafe-3.0.3.dist-info/licenses/LICENSE.txt</key>
+		<data>
+		4ypUmxNcSysmgQetwS0TzKLKHow=
+		</data>
+		<key>Resources/markupsafe-3.0.3.dist-info/top_level.txt</key>
+		<data>
+		9T4+HF2W8MlhRf2Ud+qNvTCs63s=
+		</data>
 		<key>Resources/numpy-2.4.4.dist-info/INSTALLER</key>
 		<data>
 		16AxQdXWseiLa1nvCLZoHfISxZk=
@@ -1644,53 +1828,25 @@
 		<data>
 		yrTiaNIC2eaFhNXbcnSiR1lDtTI=
 		</data>
-		<key>Resources/pydantic-2.13.1.dist-info/INSTALLER</key>
+		<key>Resources/pydantic-2.12.5.dist-info/INSTALLER</key>
 		<data>
 		16AxQdXWseiLa1nvCLZoHfISxZk=
 		</data>
-		<key>Resources/pydantic-2.13.1.dist-info/METADATA</key>
+		<key>Resources/pydantic-2.12.5.dist-info/METADATA</key>
 		<data>
-		YSZlqndP972s3fIP4XOcOgIewJQ=
+		g2gwUto8hhkdPOQdYPp/l4DPBHg=
 		</data>
-		<key>Resources/pydantic-2.13.1.dist-info/RECORD</key>
+		<key>Resources/pydantic-2.12.5.dist-info/RECORD</key>
 		<data>
-		3MwILkT5zaztxIeh1XgABlcPFks=
+		owTmH2d6N2wDvd1COvIGIn24Ozw=
 		</data>
-		<key>Resources/pydantic-2.13.1.dist-info/WHEEL</key>
+		<key>Resources/pydantic-2.12.5.dist-info/WHEEL</key>
 		<data>
-		wEabd73GapD1T2RWUio4TH2Scow=
+		BzESCNSEn4IeivJaiamYXEUD+9g=
 		</data>
-		<key>Resources/pydantic-2.13.1.dist-info/licenses/LICENSE</key>
+		<key>Resources/pydantic-2.12.5.dist-info/licenses/LICENSE</key>
 		<data>
 		y39czT2O9Ruf4ZGB0qyAHMWSMaQ=
-		</data>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/INSTALLER</key>
-		<data>
-		rV3TPfqBqRUXGC9FOHnMBWqfEjA=
-		</data>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/METADATA</key>
-		<data>
-		HflQlohwzrimwMDwAiNnJ8R5DJA=
-		</data>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/RECORD</key>
-		<data>
-		9Ra2PfdbOFK7xysPj9YpJIyjE9c=
-		</data>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/REQUESTED</key>
-		<data>
-		2jmj7l5rSw0yVb/vlWAYkK/YBwk=
-		</data>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/WHEEL</key>
-		<data>
-		5yJNqX7e37nQI5z3yt526+OZd0M=
-		</data>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/licenses/LICENSE</key>
-		<data>
-		B9IxkQjSshu9R4ot7app4fZv9JQ=
-		</data>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/top_level.txt</key>
-		<data>
-		TmH5Jk3nR4O1kkJJvP4bBvF4ua0=
 		</data>
 		<key>Resources/setuptools/_vendor/jaraco/text/Lorem ipsum.txt</key>
 		<data>
@@ -1755,6 +1911,15 @@
 	</dict>
 	<key>files2</key>
 	<dict>
+		<key>Frameworks/81d243bd2c585b0f4821__mypyc.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			C8SfMjvsIgaL74MOlQrv7FeHDV0=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"0bc49f323bec22068bef830e950aefec57870d5d"</string>
+		</dict>
 		<key>Frameworks/AppKit/_AppKit.cpython-312-darwin.so</key>
 		<dict>
 			<key>cdhash</key>
@@ -2203,10 +2368,51 @@
 			<key>requirement</key>
 			<string>cdhash H"5b39b5ef388812a4eb8b92d2ef5526f84247e886"</string>
 		</dict>
+		<key>Frameworks/aiohttp/_http_parser.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			pB6Fy2ktI9gNrKAjfKTe6juxl2s=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"a41e85cb692d23d80daca0237ca4deea3bb1976b"</string>
+		</dict>
+		<key>Frameworks/aiohttp/_http_writer.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			MoCffwXTKvyUhy0ZKfBEcr3xCTA=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"32809f7f05d32afc94872d1929f04472bdf10930"</string>
+		</dict>
+		<key>Frameworks/aiohttp/_websocket/mask.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			P4rtahhp8q6DvU5BO54w8iPDgpk=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"3f8aed6a1869f2ae83bd4e413b9e30f223c38299"</string>
+		</dict>
+		<key>Frameworks/aiohttp/_websocket/reader_c.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			RaBVl8/S5qKQ06RbmdzfVERzFMk=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"45a05597cfd2e6a290d3a45b99dcdf54447314c9"</string>
+		</dict>
 		<key>Frameworks/assets</key>
 		<dict>
 			<key>symlink</key>
 			<string>../Resources/assets</string>
+		</dict>
+		<key>Frameworks/attrs-26.1.0.dist-info</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/attrs-26.1.0.dist-info</string>
 		</dict>
 		<key>Frameworks/av/.dylibs</key>
 		<dict>
@@ -2889,10 +3095,23 @@
 			<key>symlink</key>
 			<string>../Resources/certifi</string>
 		</dict>
-		<key>Frameworks/click-8.3.2.dist-info</key>
+		<key>Frameworks/charset_normalizer/cd.cpython-312-darwin.so</key>
 		<dict>
-			<key>symlink</key>
-			<string>../Resources/click-8.3.2.dist-info</string>
+			<key>cdhash</key>
+			<data>
+			gEwoyTWU28EhFcZ8whdK3p3BYvU=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"804c28c93594dbc12115c67cc2174ade9dc162f5"</string>
+		</dict>
+		<key>Frameworks/charset_normalizer/md.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			Bz/s0OJISpQoDioKx0NDo4yFSH4=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"073fecd0e2484a94280e2a0ac74343a38c85487e"</string>
 		</dict>
 		<key>Frameworks/config</key>
 		<dict>
@@ -2932,6 +3151,33 @@
 			<key>symlink</key>
 			<string>../Resources/faster_whisper</string>
 		</dict>
+		<key>Frameworks/fastuuid/fastuuid.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			ueuCwylHqJuXKW1Lqpmk++WJ1SA=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"b9eb82c32947a89b97296d4baa99a4fbe589d520"</string>
+		</dict>
+		<key>Frameworks/frozenlist/_frozenlist.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			ZIt7BradksMD7ODnfB6OkRVVl80=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"648b7b06b69d92c303ece0e77c1e8e91155597cd"</string>
+		</dict>
+		<key>Frameworks/google/_upb/_message.abi3.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			Qnc+J+vaZQLYrEwrD02F8aOg6vs=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"42773e27ebda6502d8ac4c2b0f4d85f1a3a0eafb"</string>
+		</dict>
 		<key>Frameworks/hf_xet/hf_xet.abi3.so</key>
 		<dict>
 			<key>cdhash</key>
@@ -2941,6 +3187,11 @@
 			<key>requirement</key>
 			<string>cdhash H"b967d5b8b221b2c914fb234c90091952a100f70e"</string>
 		</dict>
+		<key>Frameworks/importlib_metadata-8.5.0.dist-info</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/importlib_metadata-8.5.0.dist-info</string>
+		</dict>
 		<key>Frameworks/jiter/jiter.cpython-312-darwin.so</key>
 		<dict>
 			<key>cdhash</key>
@@ -2949,6 +3200,21 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"ef4b2687ada4ad25c535b4ddc6fa8683bbccccf8"</string>
+		</dict>
+		<key>Frameworks/jsonschema</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/jsonschema</string>
+		</dict>
+		<key>Frameworks/jsonschema-4.23.0.dist-info</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/jsonschema-4.23.0.dist-info</string>
+		</dict>
+		<key>Frameworks/jsonschema_specifications</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/jsonschema_specifications</string>
 		</dict>
 		<key>Frameworks/libSvtAv1Enc.3.1.2.dylib</key>
 		<dict>
@@ -3243,6 +3509,34 @@
 			<key>symlink</key>
 			<string>PIL/.dylibs/libz.1.3.1.zlib-ng.dylib</string>
 		</dict>
+		<key>Frameworks/litellm-1.83.12.dist-info</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/litellm-1.83.12.dist-info</string>
+		</dict>
+		<key>Frameworks/markupsafe-3.0.3.dist-info</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/markupsafe-3.0.3.dist-info</string>
+		</dict>
+		<key>Frameworks/markupsafe/_speedups.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			foIXeAx52NAgvvvrxi1qe+4/zxw=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"7e8217780c79d8d020befbebc62d6a7bee3fcf1c"</string>
+		</dict>
+		<key>Frameworks/multidict/_multidict.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			p6HvHU+eKX1cj7H5Iq75G0pZe2c=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"a7a1ef1d4f9e297d5c8fb1f922aef91b4a597b67"</string>
+		</dict>
 		<key>Frameworks/numpy-2.4.4.dist-info</key>
 		<dict>
 			<key>symlink</key>
@@ -3401,19 +3695,28 @@
 			<key>requirement</key>
 			<string>cdhash H"2d7af1c12b31f335ad8321a0b947ec7fcba405fd"</string>
 		</dict>
-		<key>Frameworks/pydantic-2.13.1.dist-info</key>
+		<key>Frameworks/propcache/_helpers_c.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			ESEgZUHobyw2Blj0iWmovbsHljw=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"1121206541e86f2c360658f48969a8bdbb07963c"</string>
+		</dict>
+		<key>Frameworks/pydantic-2.12.5.dist-info</key>
 		<dict>
 			<key>symlink</key>
-			<string>../Resources/pydantic-2.13.1.dist-info</string>
+			<string>../Resources/pydantic-2.12.5.dist-info</string>
 		</dict>
 		<key>Frameworks/pydantic_core/_pydantic_core.cpython-312-darwin.so</key>
 		<dict>
 			<key>cdhash</key>
 			<data>
-			82I2w87zPZ03VIFG7huPEJL8JJE=
+			Jbg8EvDYRaKgwVHIxAWXwUolsYA=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"f36236c3cef33d9d37548146ee1b8f1092fc2491"</string>
+			<string>cdhash H"25b83c12f0d845a2a0c151c8c40597c14a25b180"</string>
 		</dict>
 		<key>Frameworks/python3.12</key>
 		<dict>
@@ -3914,6 +4217,24 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"26e0ba954b13f79057fb67e97496989730c2e6b3"</string>
+		</dict>
+		<key>Frameworks/regex/_regex.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			umMVMQkUwenqm4QcJnRJs12VF64=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"ba6315310914c1e9ea9b841c267449b35d9517ae"</string>
+		</dict>
+		<key>Frameworks/rpds/rpds.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			JJSg00/1HAvWD4ta/xc/F/bhMXg=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"2494a0d34ff51c0bd60f8b5aff173f17f6e13178"</string>
 		</dict>
 		<key>Frameworks/scipy/.dylibs</key>
 		<dict>
@@ -4812,6 +5133,15 @@
 			<key>symlink</key>
 			<string>../Resources/tcl9</string>
 		</dict>
+		<key>Frameworks/tiktoken/_tiktoken.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			6fuFinwCnRr9Fj/oWAnrMRqr2TM=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"e9fb858a7c029d1afd163fe85809eb311aabd933"</string>
+		</dict>
 		<key>Frameworks/tokenizers/tokenizers.abi3.so</key>
 		<dict>
 			<key>cdhash</key>
@@ -4834,6 +5164,20 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"b03625981a32cf1673599528a08776efd9e8f7df"</string>
+		</dict>
+		<key>Frameworks/yarl/_quoting_c.cpython-312-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			4haCqj0HUd1OvZsX5kCp9LqHdTg=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"e21682aa3d0751dd4ebd9b17e640a9f4ba877538"</string>
+		</dict>
+		<key>Resources/81d243bd2c585b0f4821__mypyc.cpython-312-darwin.so</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/81d243bd2c585b0f4821__mypyc.cpython-312-darwin.so</string>
 		</dict>
 		<key>Resources/AppKit</key>
 		<dict>
@@ -7163,11 +7507,51 @@
 			<key>symlink</key>
 			<string>../Frameworks/_tkinter.cpython-312-darwin.so</string>
 		</dict>
+		<key>Resources/aiohttp</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/aiohttp</string>
+		</dict>
 		<key>Resources/assets/models/README.md</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			gV4S3re0uH6pRyYiO00cYp/FvijUEZ+e9JkvVBRnt50=
+			</data>
+		</dict>
+		<key>Resources/attrs-26.1.0.dist-info/INSTALLER</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			zuuue4knoyJ+UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg=
+			</data>
+		</dict>
+		<key>Resources/attrs-26.1.0.dist-info/METADATA</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			TNQOaQ8jvzfLytNO/WdY4GLfHfB8hoM/fjzpW/H6OMw=
+			</data>
+		</dict>
+		<key>Resources/attrs-26.1.0.dist-info/RECORD</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			pRUfBGH0Wr9E/cV8LM23MVG7VKCr/SITP36nrUj43CM=
+			</data>
+		</dict>
+		<key>Resources/attrs-26.1.0.dist-info/WHEEL</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			QccIxa26bgl1E6uMy58deGWi+0aeIkkangHcxk2kWfw=
+			</data>
+		</dict>
+		<key>Resources/attrs-26.1.0.dist-info/licenses/LICENSE</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			iCEVyV38KvHutnFPjsbVy8q/Znyv+HKfQkINpj9xTp8=
 			</data>
 		</dict>
 		<key>Resources/av</key>
@@ -7179,7 +7563,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			0nIWi0mfGc3Qi7o16K+83jTzgAfOC1KSw9r3LUNHNS4=
+			UL2SGFiyGUkR/0rC2GA46zD8e1ezXDSULGhf8gvlZLg=
 			</data>
 		</dict>
 		<key>Resources/certifi/cacert.pem</key>
@@ -7196,46 +7580,16 @@
 			47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
 			</data>
 		</dict>
-		<key>Resources/click-8.3.2.dist-info/INSTALLER</key>
+		<key>Resources/charset_normalizer</key>
 		<dict>
-			<key>hash2</key>
-			<data>
-			zuuue4knoyJ+UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg=
-			</data>
-		</dict>
-		<key>Resources/click-8.3.2.dist-info/METADATA</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			yA3Hu5bMxtntTd4QrI8hTFAc58rHSPhDbP6bklbUQkA=
-			</data>
-		</dict>
-		<key>Resources/click-8.3.2.dist-info/RECORD</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			XZtBISkH9hc4Z+4/NZLmEGB8MyFo979LSr5T24Yz9jM=
-			</data>
-		</dict>
-		<key>Resources/click-8.3.2.dist-info/WHEEL</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			G2gURzTEtmeR8nrdXUJfNiB3VYVxigPQ+bEQujpNiNs=
-			</data>
-		</dict>
-		<key>Resources/click-8.3.2.dist-info/licenses/LICENSE.txt</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			morRBqOU6FO/4h9C9OctWSgZoigF2ZG18ydQKSkrZY0=
-			</data>
+			<key>symlink</key>
+			<string>../Frameworks/charset_normalizer</string>
 		</dict>
 		<key>Resources/config/config.json</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			S2H9T+wBs4kp82qE82wBbfAdjoy3PPjy/VaIp+mpWNQ=
+			ugbrEjPjGAsxIRNZpebjke6/SJm42VTm2JYwtb70oVc=
 			</data>
 		</dict>
 		<key>Resources/config/user_glossary.json</key>
@@ -7607,6 +7961,21 @@
 			TL9Um4Mm9g+A8lNtnu/rRQqavoM2WgmAMciXGfG+F9I=
 			</data>
 		</dict>
+		<key>Resources/fastuuid</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/fastuuid</string>
+		</dict>
+		<key>Resources/frozenlist</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/frozenlist</string>
+		</dict>
+		<key>Resources/google</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/google</string>
+		</dict>
 		<key>Resources/hf_xet</key>
 		<dict>
 			<key>symlink</key>
@@ -7619,10 +7988,241 @@
 			uQo7VuWRab4Phv4EEGmfQsyqFqDIXZgO8OtgaAMvCzY=
 			</data>
 		</dict>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/INSTALLER</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			zuuue4knoyJ+UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg=
+			</data>
+		</dict>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/LICENSE</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			z8d0m5b2O9McPEK1xHG/dWgUBT6EfBDz6wA0F7xSPTA=
+			</data>
+		</dict>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/METADATA</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			HXikDpZut4rY2D4ZuhAxXnLUDb+f/XP/Cyp9iYmF4G0=
+			</data>
+		</dict>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/RECORD</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			YqoOgaRyWqzlw2g/na2YfBQeI1guMgg6tXGa5XI/K0w=
+			</data>
+		</dict>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/WHEEL</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			cVxcB9AmuTcXqmwrtPhNK88dr7IR/b6qagTj0UvIEbY=
+			</data>
+		</dict>
+		<key>Resources/importlib_metadata-8.5.0.dist-info/top_level.txt</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			CO3fD9yylANiXkrMo4qHLV/mqXL2sC5JFKgt1yWAT+A=
+			</data>
+		</dict>
 		<key>Resources/jiter</key>
 		<dict>
 			<key>symlink</key>
 			<string>../Frameworks/jiter</string>
+		</dict>
+		<key>Resources/jsonschema-4.23.0.dist-info/INSTALLER</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			zuuue4knoyJ+UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg=
+			</data>
+		</dict>
+		<key>Resources/jsonschema-4.23.0.dist-info/METADATA</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Hd96gAfdO0v5RpFeT25qjyo7PvhASy56F4Jw3FUUTlo=
+			</data>
+		</dict>
+		<key>Resources/jsonschema-4.23.0.dist-info/RECORD</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			07UAy9teTU4alJUqAGU4RmPtSJf1ANz2mKmExRtl760=
+			</data>
+		</dict>
+		<key>Resources/jsonschema-4.23.0.dist-info/WHEEL</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			1yFddiXMmvYK7QYTqtRNtX66WJ0Mz8PYEiEUoOUUxRY=
+			</data>
+		</dict>
+		<key>Resources/jsonschema-4.23.0.dist-info/entry_points.txt</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			vO7rX4Fs/xIVJy2pnAtKgTSxfpnozAVQ0DjCmpMxnWE=
+			</data>
+		</dict>
+		<key>Resources/jsonschema-4.23.0.dist-info/licenses/COPYING</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			T5KgFaE8TRoEC+8BiqE0MLTxvHO0Gxa7hGw0Z2bedDk=
+			</data>
+		</dict>
+		<key>Resources/jsonschema/benchmarks/issue232/issue.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			eaPOZjMRu5u8RpKrsA9uk7ucPZS5tkKG4D/hkOTQ3Hk=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/metaschema.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			e3YbPhIfCgyh6ioLjizIVrz4AWBLgmjXG6yqICvAwTs=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/applicator</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			aJUQDplyb7sQcFhRK77D7P1LJOj9L6zuPlBe5ysNTDE=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/content</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			m31PVaTi/bAsQwBo/f+rxzKt3OI42j8d8mkCScM1MnQ=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/core</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			taLElX9kldClCB8ECevooU5BOayyA/x0hHH47eKvWyw=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/format</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			UOu/55BhGoSbjMQAoJwdDg+2q1wNQ6DyIgH9NiUFa/Q=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/meta-data</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			1H4kRd1qgicaKY2DzGxsuNSuHhXg3Fa+zTehY+zwEoY=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft201909/vocabularies/validation</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			HlJsHTNac0gF/ILPV5jBK5YK19olF8Zs2lobCTWcPBw=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/metaschema.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Qdp29a+3zgYtJI92JGOpL3ykfk4PkFsiS6av7vkd7Q8=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/applicator</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			xKbkFHuR/vf+ptwFjLG/k0AvdBS3ZXiosWqvHa1qrO8=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/content</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			CDQ3R3ZOSlgUJieTz01lIFenkThjxZUNQyl+jh/axbY=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/core</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			wtEqjk3RHTNt/IOj9mOqTGnwtJs76wlP/rJbUxb0gD0=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/format-annotation</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			q8d1rf79idIjWBcNm/k/Tr0jSVY7u+3WDwK+98gSvMA=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/format-assertion</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			xSJCuaG7eGsmw+gset1CjDH5yW5XXc6Z5W6l/qptogw=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/meta-data</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			j3bW4U9Bubku+TO3CM3FFEyLUmhlGtEZGEhfsXVPHHY=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/unevaluated</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Lb+8tzmUtnCwl2SSre4f/7RsIWgnhNL1pMpWH54tDLQ=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft202012/vocabularies/validation</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			cBCjHlQfMtK+ch4t40jfdcmzaHaj7TBId/wKvaHTelg=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft3/metaschema.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			LPdfZENvtb43Si6qJ6uLfh/WUcm0ba6mxnsC/WTiRYs=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft4/metaschema.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			4UidC0dV8CeTMCWR0/y48Htok6gqlPJIlfjk7fEbguI=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft6/metaschema.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			wp386fVINcOgbAOzxdXsDtp3cGVo+cTffPvHVmpRAG0=
+			</data>
+		</dict>
+		<key>Resources/jsonschema_specifications/schemas/draft7/metaschema.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			PVOSCIJhYGxVm2A/OFMpyfGrRbXWZ+uZBodFOwVdQF4=
+			</data>
 		</dict>
 		<key>Resources/libSvtAv1Enc.3.1.2.dylib</key>
 		<dict>
@@ -7889,6 +8489,107 @@
 			<key>symlink</key>
 			<string>PIL/.dylibs/libz.1.3.1.zlib-ng.dylib</string>
 		</dict>
+		<key>Resources/litellm-1.83.12.dist-info/INSTALLER</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			zuuue4knoyJ+UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg=
+			</data>
+		</dict>
+		<key>Resources/litellm-1.83.12.dist-info/METADATA</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			db2pjn8EF2GFfAzbQwkxpe6hu3D+1WYAR0urooaT4zM=
+			</data>
+		</dict>
+		<key>Resources/litellm-1.83.12.dist-info/RECORD</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			NIXkKoAuukrR6mylnBLI6cBCAQGMaxegy4ba5CjbKpE=
+			</data>
+		</dict>
+		<key>Resources/litellm-1.83.12.dist-info/REQUESTED</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
+			</data>
+		</dict>
+		<key>Resources/litellm-1.83.12.dist-info/WHEEL</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Uo4e6VmJM8J/cLBTtiWBRVQkc1yUEkw94xaL0B/lH6c=
+			</data>
+		</dict>
+		<key>Resources/litellm-1.83.12.dist-info/entry_points.txt</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			NzExJOSbLIbDsbse8nO9Qxh/lgdFnyc5ujxnxEm2MvM=
+			</data>
+		</dict>
+		<key>Resources/litellm-1.83.12.dist-info/licenses/LICENSE</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			sXDWv46INd01fgEWgdsCj01R4vsOqJIFj1bgH7ObgnM=
+			</data>
+		</dict>
+		<key>Resources/markupsafe</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/markupsafe</string>
+		</dict>
+		<key>Resources/markupsafe-3.0.3.dist-info/INSTALLER</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			zuuue4knoyJ+UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg=
+			</data>
+		</dict>
+		<key>Resources/markupsafe-3.0.3.dist-info/METADATA</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			ErTMYaf6KIz3Zn7j8hN4bZYZ21f7M/9vk0r7y1wS7IE=
+			</data>
+		</dict>
+		<key>Resources/markupsafe-3.0.3.dist-info/RECORD</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			VaFzHuY/9B7DVO6Oj+vBihmOntrdp6ufJyGxQIGzUgg=
+			</data>
+		</dict>
+		<key>Resources/markupsafe-3.0.3.dist-info/WHEEL</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			V1loQ6TpxABu1APUg0MoTRBOzSKT5xVc3skizX+ovCU=
+			</data>
+		</dict>
+		<key>Resources/markupsafe-3.0.3.dist-info/licenses/LICENSE.txt</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			SJqOEQhQntmKN7uYPhHg9+HTHwvY+Zp5yESOf/N9B+o=
+			</data>
+		</dict>
+		<key>Resources/markupsafe-3.0.3.dist-info/top_level.txt</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			qy0Plje5IJuvsCBjejJyhDCjEAdcDLK/2agVcex8Z6U=
+			</data>
+		</dict>
+		<key>Resources/multidict</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/multidict</string>
+		</dict>
 		<key>Resources/numpy</key>
 		<dict>
 			<key>symlink</key>
@@ -8065,35 +8766,40 @@
 			<key>symlink</key>
 			<string>../Frameworks/onnxruntime</string>
 		</dict>
-		<key>Resources/pydantic-2.13.1.dist-info/INSTALLER</key>
+		<key>Resources/propcache</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/propcache</string>
+		</dict>
+		<key>Resources/pydantic-2.12.5.dist-info/INSTALLER</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			zuuue4knoyJ+UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg=
 			</data>
 		</dict>
-		<key>Resources/pydantic-2.13.1.dist-info/METADATA</key>
+		<key>Resources/pydantic-2.12.5.dist-info/METADATA</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			IBDOrG4RWzR/Qp28GIezKcuCcCi9MvtO9A4rAl9G2Aw=
+			o7oj6JUZH+1puDI8vLzcgphMoLajzcYsSKI0GIapwI0=
 			</data>
 		</dict>
-		<key>Resources/pydantic-2.13.1.dist-info/RECORD</key>
+		<key>Resources/pydantic-2.12.5.dist-info/RECORD</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			S7aNG+JKxLQpMEASH5zuHBGgOgNrWW2J+rxRRIx0HsA=
+			+RTGyY3pQfl380C97YZXDPqPqLWqc8DC8HapIeTkGys=
 			</data>
 		</dict>
-		<key>Resources/pydantic-2.13.1.dist-info/WHEEL</key>
+		<key>Resources/pydantic-2.12.5.dist-info/WHEEL</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			QccIxa26bgl1E6uMy58deGWi+0aeIkkangHcxk2kWfw=
+			qtCwoSJWgHk21S1Kb4ihdzI2rlJ1ZKaIurTj/ngOhyQ=
 			</data>
 		</dict>
-		<key>Resources/pydantic-2.13.1.dist-info/licenses/LICENSE</key>
+		<key>Resources/pydantic-2.12.5.dist-info/licenses/LICENSE</key>
 		<dict>
 			<key>hash2</key>
 			<data>
@@ -8110,59 +8816,20 @@
 			<key>symlink</key>
 			<string>../Frameworks/python3.12</string>
 		</dict>
+		<key>Resources/regex</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/regex</string>
+		</dict>
+		<key>Resources/rpds</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/rpds</string>
+		</dict>
 		<key>Resources/scipy</key>
 		<dict>
 			<key>symlink</key>
 			<string>../Frameworks/scipy</string>
-		</dict>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/INSTALLER</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			5hhM4Q4mYTT9z6QB6PGpUAW81PGNFrYrdXMj4oM/6ak=
-			</data>
-		</dict>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/METADATA</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			o+OLnuQyYonUhkcE8w4pnudp4jCc6fSnXw3hpQrQo1Y=
-			</data>
-		</dict>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/RECORD</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			Uqa47g3hXPf9mWJfQ7l80uOUKshvFgVOqQ3kjmbyk1U=
-			</data>
-		</dict>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/REQUESTED</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
-			</data>
-		</dict>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/WHEEL</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			/zCd3N1l69ArxyTb8rzEoP9TpbYXkqRFSNOD5OuxnTs=
-			</data>
-		</dict>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/licenses/LICENSE</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			RYUC4S2Xu/ZEOGBqIARKqF6wX7CoqAe7NdvsJT/R/AQ=
-			</data>
-		</dict>
-		<key>Resources/setuptools/_vendor/importlib_metadata-8.7.1.dist-info/top_level.txt</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			CO3fD9yylANiXkrMo4qHLV/mqXL2sC5JFKgt1yWAT+A=
-			</data>
 		</dict>
 		<key>Resources/setuptools/_vendor/jaraco/text/Lorem ipsum.txt</key>
 		<dict>
@@ -8219,6 +8886,11 @@
 			<data>
 			e0tYpE++X8zr0pA6q2kqYnB9XoxBdcdYCoGwRVd+kh8=
 			</data>
+		</dict>
+		<key>Resources/tiktoken</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/tiktoken</string>
 		</dict>
 		<key>Resources/tokenizers</key>
 		<dict>
@@ -8278,6 +8950,11 @@
 		<dict>
 			<key>symlink</key>
 			<string>../Frameworks/yaml</string>
+		</dict>
+		<key>Resources/yarl</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/yarl</string>
 		</dict>
 	</dict>
 	<key>rules</key>

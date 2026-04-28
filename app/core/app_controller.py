@@ -70,6 +70,7 @@ class AppController:
         self._paste_target_app: str | None = None
         self._command_selection_pending: str | None = None
         self._queue: queue.Queue[ProcessingJob] = queue.Queue(maxsize=self._config_manager.config.max_parallel_jobs)
+        self._provider_swap_lock = threading.Lock()
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
 
@@ -318,14 +319,25 @@ class AppController:
             self._emit_status("Idle")
 
     def reload_config(self) -> None:
-        """Перезагружает конфиг во время работы."""
-        self._config_manager.reload()
-        cfg = self._config_manager.config
+        """Перезагружает конфиг во время работы и пересоздаёт STT/LLM провайдеры."""
+        from app.core.llm_processor import LLMProcessor
+        from app.core.provider_factory import ProviderFactory
+
+        with self._provider_swap_lock:
+            self._config_manager.reload()
+            cfg = self._config_manager.config
+            factory = ProviderFactory(self._config_manager)
+            self._transcription_provider = factory.create_transcription_provider(cfg)
+            self._llm_processor = LLMProcessor(
+                provider=factory.create_llm_provider(cfg),
+                enabled=cfg.llm_enabled,
+                model_provider=cfg.model_provider,
+            )
         if hasattr(self._audio_engine, "set_input_device"):
             self._audio_engine.set_input_device(cfg.audio_input_device)
         if hasattr(self._audio_engine, "set_boost_quiet_input"):
             self._audio_engine.set_boost_quiet_input(cfg.whisper_mode_boost_input)
-        LOGGER.info("Конфигурация обновлена во время выполнения")
+        LOGGER.info("Конфигурация и провайдеры API обновлены во время выполнения")
 
     def apply_audio_input_device(self, device: int | None) -> None:
         """Сохраняет выбранный микрофон в config.json и применяет к движку записи."""
@@ -378,6 +390,9 @@ class AppController:
         return ""
 
     def _process_job(self, job: ProcessingJob) -> None:
+        with self._provider_swap_lock:
+            transcription_provider = self._transcription_provider
+            llm_processor = self._llm_processor
         config = self._config_manager.config
         glossary_path = self._config_manager.config_path.parent / config.user_glossary_path
         glossary_pairs = load_glossary_entries(glossary_path)
@@ -388,7 +403,7 @@ class AppController:
                 self._status_bridge.set_status("Processing", text[:400])
 
         stt_started = time.perf_counter()
-        raw_text = self._transcription_provider.transcribe(
+        raw_text = transcription_provider.transcribe(
             audio_bytes=job.audio_bytes,
             sample_rate=config.sample_rate,
             language=config.language,
@@ -409,7 +424,7 @@ class AppController:
 
         llm_started = time.perf_counter()
         if job.command_selection is not None:
-            processed_text = self._llm_processor.refine_command(
+            processed_text = llm_processor.refine_command(
                 selection=job.command_selection,
                 spoken_instruction=raw_preview,
                 command_system_prompt=config.command_mode_system_prompt,
@@ -421,12 +436,17 @@ class AppController:
                 LOGGER.error("JournalManager не инициализирован")
                 self._emit_status("Error", "Дневник недоступен")
                 return
-            if not self._llm_processor.is_remote_enabled():
+            if not llm_processor.is_remote_enabled():
                 self._emit_status("Error", "Включите LLM для дневника")
+                return
+            journal_cred = llm_processor.journal_missing_credential_message(self._config_manager)
+            if journal_cred:
+                LOGGER.warning("Дневник: %s", journal_cred)
+                self._emit_status("Error", journal_cred)
                 return
             journal_base = config.journal_system_prompt + (("\n\n" + glossary_block) if glossary_block else "")
             journal_prompt = journal_base + context_suffix
-            structured = self._llm_processor.process_journal_entry(raw_preview, journal_prompt)
+            structured = llm_processor.process_journal_entry(raw_preview, journal_prompt)
             llm_ms = (time.perf_counter() - llm_started) * 1000
             refined = (structured.refined_text or "").strip() or raw_preview
             title = (structured.title or "").strip() or (refined[:80] + ("…" if len(refined) > 80 else ""))
@@ -459,7 +479,7 @@ class AppController:
             return
         else:
             effective_prompt = base_prompt + context_suffix
-            processed_text = self._llm_processor.refine_text(raw_text=raw_preview, system_prompt=effective_prompt)
+            processed_text = llm_processor.refine_text(raw_text=raw_preview, system_prompt=effective_prompt)
             llm_ms = (time.perf_counter() - llm_started) * 1000
 
         proc_stripped = (processed_text or "").strip()
@@ -483,7 +503,7 @@ class AppController:
             LOGGER.warning("Текст после LLM пустой, вставка пропущена.")
 
         if proc_stripped and paste_ok and self._stats_manager is not None:
-            llm_used = self._llm_processor.is_remote_enabled()
+            llm_used = llm_processor.is_remote_enabled()
             audio_dur = wav_audio_duration_seconds(job.audio_bytes)
             words = len(proc_stripped.split())
             try:

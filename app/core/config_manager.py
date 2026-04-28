@@ -13,8 +13,27 @@ from typing import Any
 from dotenv import dotenv_values, load_dotenv, set_key, unset_key
 
 from app.core.hotkey_spec import parse_hotkey_spec
+from app.core.provider_credentials import ALLOWED_MODEL_PROVIDERS, ALLOWED_WHISPER_BACKENDS
 
 LOGGER = logging.getLogger(__name__)
+
+# Ключи, которые дашборд может массово записать в ``config.json`` (остальные игнорируются).
+DASHBOARD_PATCHABLE_KEYS = frozenset(
+    {
+        "hotkey",
+        "journal_hotkey",
+        "command_mode_hotkey",
+        "llm_enabled",
+        "llm_model",
+        "model_provider",
+        "system_prompt",
+        "journal_system_prompt",
+        "whisper_backend",
+        "whisper_model",
+        "language",
+        "floating_pill_enabled",
+    }
+)
 
 
 @dataclass
@@ -136,6 +155,67 @@ class ConfigManager:
             self._write_json(raw_data)
             self._config = self._validate(raw_data)
             return self._config
+
+    def update_and_save(self, new_values: dict[str, Any]) -> AppConfig:
+        """
+        Читает ``config.json``, обновляет разрешённые ключи, валидирует целиком и атомарно сохраняет.
+
+        Неизвестные ключи из ``new_values`` пропускаются (с предупреждением в логе).
+
+        Args:
+            new_values: Плоский словарь ключ → значение для записи.
+
+        Returns:
+            Актуальный ``AppConfig`` после успешной валидации и записи.
+
+        Raises:
+            RuntimeError: При ошибке валидации или пустом ``hotkey``.
+        """
+        with self._lock:
+            raw = self._read_json()
+            for key, val in new_values.items():
+                if key not in DASHBOARD_PATCHABLE_KEYS:
+                    LOGGER.warning("update_and_save: пропуск ключа вне белого списка: %s", key)
+                    continue
+                if key == "language":
+                    if val is None or str(val).strip().lower() in ("", "auto", "detect", "multi"):
+                        raw["language"] = None
+                    else:
+                        raw["language"] = str(val).strip()
+                elif key in ("llm_enabled", "floating_pill_enabled"):
+                    raw[key] = bool(val)
+                elif key in ("system_prompt", "journal_system_prompt", "llm_model"):
+                    raw[key] = str(val)
+                elif key in ("hotkey", "journal_hotkey", "command_mode_hotkey"):
+                    raw[key] = str(val or "").strip().lower().replace(" ", "")
+                elif key == "whisper_backend":
+                    raw[key] = str(val or "").strip().lower()
+                elif key == "model_provider":
+                    raw[key] = str(val or "").strip().lower()
+                elif key == "whisper_model":
+                    raw[key] = str(val or "").strip()
+                else:
+                    raw[key] = val
+
+            if not str(raw.get("hotkey", "") or "").strip():
+                raise RuntimeError("Поле «Основной хоткей» не может быть пустым")
+
+            cfg = self._validate(raw)
+            raw["hotkey"] = cfg.hotkey
+            raw["journal_hotkey"] = cfg.journal_hotkey
+            raw["command_mode_hotkey"] = cfg.command_mode_hotkey
+            raw["whisper_backend"] = cfg.whisper_backend
+            raw["model_provider"] = cfg.model_provider
+            raw["whisper_model"] = cfg.whisper_model
+            raw["language"] = cfg.language
+            raw["llm_model"] = cfg.llm_model
+            raw["llm_enabled"] = cfg.llm_enabled
+            raw["system_prompt"] = cfg.system_prompt
+            raw["journal_system_prompt"] = cfg.journal_system_prompt
+            raw["floating_pill_enabled"] = cfg.floating_pill_enabled
+            self._write_json(raw)
+            self._config = cfg
+            return cfg
 
     def secrets_env_path(self) -> Path:
         """Файл ``.env.secrets`` в каталоге поддержки приложения (доступен на запись вне бандла .app)."""
@@ -289,13 +369,26 @@ class ConfigManager:
                 LOGGER.warning("Некорректный journal_hotkey %r — режим дневника отключён", journal_hotkey_raw)
                 journal_hotkey_effective = ""
 
+        model_provider = str(raw["model_provider"]).lower()
+        if model_provider not in ALLOWED_MODEL_PROVIDERS:
+            raise RuntimeError(
+                f"model_provider: ожидается один из {sorted(ALLOWED_MODEL_PROVIDERS)}, получено {model_provider!r}"
+            )
+
+        whisper_backend = str(raw["whisper_backend"]).lower()
+        if whisper_backend not in ALLOWED_WHISPER_BACKENDS:
+            raise RuntimeError(
+                f"whisper_backend: ожидается один из {sorted(ALLOWED_WHISPER_BACKENDS)}, "
+                f"получено {whisper_backend!r}"
+            )
+
         return AppConfig(
             app_name=str(raw["app_name"]),
             primary_color=str(raw["primary_color"]),
             hotkey=str(raw["hotkey"]).lower().replace(" ", ""),
             system_prompt=str(raw["system_prompt"]),
-            model_provider=str(raw["model_provider"]).lower(),
-            whisper_backend=str(raw["whisper_backend"]).lower(),
+            model_provider=model_provider,
+            whisper_backend=whisper_backend,
             whisper_model=str(raw["whisper_model"]),
             local_whisper_model=str(raw["local_whisper_model"]),
             llm_model=str(raw["llm_model"]),

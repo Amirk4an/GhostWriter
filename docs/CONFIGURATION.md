@@ -14,11 +14,11 @@
 | `primary_color` | HEX цвета для pill/дашборда. |
 | `hotkey` | Хоткей диктовки (например `f8`); нормализация: нижний регистр, без пробелов. |
 | `system_prompt` | Базовый промпт LLM-постобработки. |
-| `model_provider` | Сейчас ожидается `openai` (нижний регистр при чтении). |
-| `whisper_backend` | `local` или `openai`. |
-| `whisper_model` | Имя модели API (например `whisper-1`). |
+| `model_provider` | `openai` — нативный OpenAI SDK; иначе LLM через **LiteLLM** (`groq`, `anthropic`, `gemini`, `google`, `openrouter`, `ollama`, `mistral`, `cohere` — нижний регистр). |
+| `whisper_backend` | `local` (faster-whisper), `openai`, `groq`, `deepgram`. |
+| `whisper_model` | Имя модели API: `whisper-1` (OpenAI), `whisper-large-v3-turbo` (Groq), `nova-2` (Deepgram) и т.д. |
 | `local_whisper_model` | Имя модели/каталога для faster-whisper. |
-| `llm_model` | Идентификатор модели чата OpenAI. |
+| `llm_model` | Для `openai` — имя модели чата (например `gpt-4o-mini`). Для LiteLLM — короткое имя модели **без** префикса провайдера (например `llama-3.1-8b-instant` для `groq`) или полный идентификатор с `/` (например `openai/gpt-4o-mini` для OpenRouter). |
 | `llm_enabled` | `true` / `false` — включать ли постобработку LLM. |
 | `sample_rate` | Гц, обычно `16000`. |
 | `channels` | Чаще `1` (моно). |
@@ -137,13 +137,28 @@
 3. **`audio_input_device`** в JSON — индекс PortAudio или `null`.
 4. В логах после записи смотрите **`peak`** / **`rms`**.
 
-## Переменные окружения
+## Переменные окружения и секреты
 
-### Приоритет `OPENAI_API_KEY`
+Приоритет чтения секретов (см. `ConfigManager`): файл **`.env.secrets`** в каталоге поддержки приложения, затем локальный **`.env`**, затем переменные окружения процесса.
 
-1. `.env.secrets` в каталоге поддержки приложения.
-2. `.env` рядом с `config.json` или в текущей рабочей директории.
-3. Переменные окружения процесса.
+### Таблица: провайдер → переменная секрета
+
+| Роль | Значение в конфиге | Переменная (`.env.secrets`) |
+|------|--------------------|-----------------------------|
+| LLM | `model_provider` = `openai` | `OPENAI_API_KEY` |
+| LLM | `groq` | `GROQ_API_KEY` |
+| LLM | `anthropic` | `ANTHROPIC_API_KEY` |
+| LLM | `google` / `gemini` | `GEMINI_API_KEY` |
+| LLM | `openrouter` | `OPENROUTER_API_KEY` |
+| LLM | `mistral` | `MISTRAL_API_KEY` |
+| LLM | `cohere` | `COHERE_API_KEY` |
+| LLM | `ollama` | ключ не обязателен (локальный сервер по умолчанию) |
+| STT | `whisper_backend` = `openai` | `OPENAI_API_KEY` |
+| STT | `groq` | `GROQ_API_KEY` |
+| STT | `deepgram` | `DEEPGRAM_API_KEY` |
+| STT | `local` | — |
+
+После сохранения настроек в дашборде основной процесс получает **`RELOAD_CONFIG`**: конфиг и **провайдеры STT/LLM пересоздаются** без полного перезапуска приложения.
 
 ### Прочее
 
@@ -153,6 +168,6 @@
 
 ## Рекомендации
 
-- Слабое железо — модели `tiny` / `base`.
-- OpenAI-режимы — сеть и валидный ключ.
-- После правок **`config.json`** перезапустите процесс приложения.
+- Слабое железо — модели `tiny` / `base` для локального whisper.
+- Облачные режимы — сеть и валидные ключи по таблице выше.
+- Правки **`config.json`** на диске: используйте кнопку «Перечитать» в дашборде или сохранение из Settings — основной процесс подхватит конфиг и провайдеры; полный перезапуск нужен только для смены зависимостей окружения или кода.

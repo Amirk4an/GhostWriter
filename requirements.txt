@@ -2,6 +2,8 @@ customtkinter
 faster-whisper
 numpy
 openai
+litellm>=1.55.0
+httpx>=0.27.0
 pillow
 pyinstaller
 pynput

@@ -21,6 +21,16 @@ class ProviderFactory:
             from app.providers.openai_whisper_provider import OpenAIWhisperProvider
 
             return OpenAIWhisperProvider(config_manager=self._config_manager, model_name=config.whisper_model)
+        if config.whisper_backend == "groq":
+            from app.providers.groq_whisper_provider import GroqWhisperProvider
+
+            return GroqWhisperProvider(config_manager=self._config_manager, model_name=config.whisper_model)
+        if config.whisper_backend == "deepgram":
+            from app.providers.deepgram_transcription_provider import DeepgramTranscriptionProvider
+
+            return DeepgramTranscriptionProvider(
+                config_manager=self._config_manager, model_name=config.whisper_model
+            )
         raise RuntimeError(f"Неподдерживаемый whisper_backend: {config.whisper_backend}")
 
     def create_llm_provider(self, config: AppConfig) -> LLMProvider | None:
@@ -30,4 +40,10 @@ class ProviderFactory:
             from app.providers.openai_llm_provider import OpenAILLMProvider
 
             return OpenAILLMProvider(config_manager=self._config_manager, model_name=config.llm_model)
-        raise RuntimeError(f"Неподдерживаемый model_provider: {config.model_provider}")
+        from app.providers.litellm_llm_provider import LiteLLMLLMProvider
+
+        return LiteLLMLLMProvider(
+            self._config_manager,
+            model_provider=config.model_provider,
+            llm_model=config.llm_model,
+        )

@@ -137,6 +137,30 @@ def test_set_secret_and_peek(tmp_path: Path, secrets_path: Path, monkeypatch: py
     assert manager.peek_secret("OPENAI_API_KEY") is None
 
 
+def test_update_and_save_persists_whitelisted_keys(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["journal_hotkey"] = ""
+    base["floating_pill_enabled"] = True
+    base["journal_system_prompt"] = "old journal"
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    manager = ConfigManager(config_file)
+    manager.update_and_save(
+        {
+            "llm_enabled": True,
+            "journal_system_prompt": "новый промпт дневника",
+            "floating_pill_enabled": False,
+            "unknown_ignored": "x",
+        }
+    )
+    manager.reload()
+    assert manager.config.llm_enabled is True
+    assert manager.config.floating_pill_enabled is False
+    assert "новый" in manager.config.journal_system_prompt
+    saved = json.loads(config_file.read_text(encoding="utf-8"))
+    assert "unknown_ignored" not in saved
+
+
 def test_journal_hotkey_normalized(tmp_path: Path) -> None:
     base = _minimal_config_dict()
     base["journal_hotkey"] = " Alt + F9 "
@@ -144,6 +168,45 @@ def test_journal_hotkey_normalized(tmp_path: Path) -> None:
     config_file.write_text(json.dumps(base), encoding="utf-8")
     manager = ConfigManager(config_file)
     assert manager.config.journal_hotkey == "alt+f9"
+
+
+def test_validate_rejects_unknown_model_provider(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["model_provider"] = "unknown_vendor"
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="model_provider"):
+        ConfigManager(config_file)
+
+
+def test_validate_rejects_unknown_whisper_backend(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["whisper_backend"] = "azure"
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="whisper_backend"):
+        ConfigManager(config_file)
+
+
+def test_update_and_save_model_provider_and_whisper_model(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["journal_hotkey"] = ""
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    manager = ConfigManager(config_file)
+    manager.update_and_save(
+        {
+            "model_provider": "groq",
+            "llm_model": "llama-3.1-8b-instant",
+            "whisper_backend": "deepgram",
+            "whisper_model": "nova-2",
+        }
+    )
+    manager.reload()
+    assert manager.config.model_provider == "groq"
+    assert manager.config.llm_model == "llama-3.1-8b-instant"
+    assert manager.config.whisper_backend == "deepgram"
+    assert manager.config.whisper_model == "nova-2"
 
 
 def test_secret_user_file_over_env(tmp_path: Path, secrets_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

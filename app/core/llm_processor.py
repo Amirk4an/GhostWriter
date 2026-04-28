@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.interfaces import LLMProvider
+
+if TYPE_CHECKING:
+    from app.core.config_manager import ConfigManager
 
 
 @dataclass(frozen=True)
@@ -39,13 +42,49 @@ def _normalize_journal_dict(data: dict[str, Any]) -> JournalStructuredResult:
 class LLMProcessor:
     """Применяет system prompt и вызывает провайдер LLM."""
 
-    def __init__(self, provider: LLMProvider | None, enabled: bool) -> None:
+    def __init__(
+        self,
+        provider: LLMProvider | None,
+        enabled: bool,
+        *,
+        model_provider: str = "openai",
+    ) -> None:
         self._provider = provider
         self._enabled = enabled
+        self._model_provider = (model_provider or "openai").lower()
 
     def is_remote_enabled(self) -> bool:
         """``True``, если настроен провайдер и LLM не отключён в конфиге (будет сетевой вызов)."""
         return bool(self._enabled and self._provider is not None)
+
+    def requires_openai_api_key(self) -> bool:
+        """Устаревший признак: только встроенный OpenAI-провайдер (см. ``journal_missing_credential_message``)."""
+        if not self._enabled or self._provider is None:
+            return False
+        from app.providers.openai_llm_provider import OpenAILLMProvider
+
+        return isinstance(self._provider, OpenAILLMProvider)
+
+    def journal_missing_credential_message(self, config_manager: ConfigManager) -> str | None:
+        """
+        Для дневника: если настроен облачный LLM, но нет нужного секрета — текст ошибки для UI.
+
+        Для кастомных провайдеров в тестах (не OpenAI / не LiteLLM) возвращает ``None``.
+        """
+        if not self._enabled or self._provider is None:
+            return None
+        from app.providers.litellm_llm_provider import LiteLLMLLMProvider
+        from app.providers.openai_llm_provider import OpenAILLMProvider
+
+        if isinstance(self._provider, OpenAILLMProvider):
+            if not (config_manager.peek_secret("OPENAI_API_KEY") or "").strip():
+                path = config_manager.secrets_env_path()
+                return f"Нет ключа OpenAI. Задайте OPENAI_API_KEY в настройках или в файле {path}"
+            return None
+        if isinstance(self._provider, LiteLLMLLMProvider):
+            msg = self._provider.missing_credential_message(config_manager)
+            return msg or None
+        return None
 
     def refine_text(self, raw_text: str, system_prompt: str) -> str:
         """Возвращает обработанный текст либо исходный pass-through."""

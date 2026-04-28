@@ -28,7 +28,11 @@ LOGGER = logging.getLogger(__name__)
 DASHBOARD_FOCUS_RAISE = "raise"
 
 
-def run_dashboard_process(config_path_str: str, focus_commands: "MPQueue[Any] | None" = None) -> None:
+def run_dashboard_process(
+    config_path_str: str,
+    focus_commands: "MPQueue[Any] | None" = None,
+    host_command_queue: "MPQueue[Any] | None" = None,
+) -> None:
     """
     Целевая функция ``multiprocessing.Process`` для дашборда: только конфиг, CTk и UI.
 
@@ -38,6 +42,7 @@ def run_dashboard_process(config_path_str: str, focus_commands: "MPQueue[Any] | 
     Args:
         config_path_str: Абсолютный или нормализованный путь к ``config.json``.
         focus_commands: Очередь команд из родительского процесса (например ``raise`` — поднять окно).
+        host_command_queue: Очередь в основной процесс (например ``reload_config`` после сохранения настроек).
     """
     from app.core.config_manager import ConfigManager
     from app.core.logging_config import setup_logging
@@ -153,7 +158,7 @@ def run_dashboard_process(config_path_str: str, focus_commands: "MPQueue[Any] | 
 
     from app.ui.main_dashboard import mount_main_dashboard
 
-    mount_main_dashboard(root, config_manager)
+    mount_main_dashboard(root, config_manager, host_command_queue=host_command_queue)
 
     def _on_close() -> None:
         meter = getattr(root, "_gw_mic_meter", None)

@@ -103,7 +103,7 @@ def test_journal_job_skips_clipboard_and_writes_db(tmp_path: Path) -> None:
     )
     ctrl.handle_journal_edge(True, time.perf_counter())
     ctrl.handle_journal_edge(False, time.perf_counter())
-    time.sleep(0.15)
+    time.sleep(0.5)
     assert out.calls == []
     rows = jm.list_recent(limit=5)
     assert len(rows) == 1

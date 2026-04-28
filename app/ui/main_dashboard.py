@@ -9,12 +9,51 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import TYPE_CHECKING, Any
+
+from app.core.api_selftest import test_llm_connection, test_stt_connection
+from app.core.provider_credentials import (
+    ALLOWED_MODEL_PROVIDERS,
+    ALLOWED_WHISPER_BACKENDS,
+    all_known_secret_env_names,
+    iter_needed_secret_names,
+)
 
 if TYPE_CHECKING:
     from app.core.config_manager import ConfigManager
 
 LOGGER = logging.getLogger(__name__)
+
+# Порядок в меню model_provider (остальные из ALLOWED_MODEL_PROVIDERS добавятся в конец).
+_MODEL_PROVIDER_MENU_ORDER = (
+    "openai",
+    "groq",
+    "anthropic",
+    "gemini",
+    "google",
+    "openrouter",
+    "ollama",
+    "mistral",
+    "cohere",
+)
+
+# Пресеты llm_model по провайдеру (пользователь может оставить своё значение из config — оно подмешивается в меню).
+_LLM_MODEL_PRESETS: dict[str, list[str]] = {
+    "openai": ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"],
+    "groq": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768"],
+    "anthropic": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
+    "gemini": ["gemini-2.0-flash", "gemini-1.5-flash"],
+    "google": ["gemini-2.0-flash", "gemini-1.5-flash"],
+    "openrouter": ["openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet"],
+    "ollama": ["llama3.1", "mistral"],
+    "mistral": ["mistral-small-latest", "mistral-large-latest"],
+    "cohere": ["command-r-plus"],
+}
+
+_WHISPER_MODEL_HINTS = (
+    "local: не используется для API. openai: whisper-1. groq: whisper-large-v3-turbo. deepgram: nova-2."
+)
 
 
 def _mask_secret(value: str | None, visible_tail: int = 4) -> str:
@@ -35,7 +74,12 @@ class MainDashboard:
     в процессе уже создан ``root = ctk.CTk()``.
     """
 
-    def __init__(self, root: Any, config_manager: "ConfigManager") -> None:
+    def __init__(
+        self,
+        root: Any,
+        config_manager: "ConfigManager",
+        host_command_queue: Any | None = None,
+    ) -> None:
         if getattr(root, "_gw_dashboard_mounted", False):
             return
         root._gw_dashboard_mounted = True  # noqa: SLF001
@@ -44,8 +88,11 @@ class MainDashboard:
 
         from app.platform.audio_devices import list_audio_input_devices, validate_audio_input_index
         from app.ui.ctk_macos_theme import preferred_ui_font
+        from app.ui.hotkey_capture import bind_hotkey_capture
+        from app.ui.pill_ipc import reload_config_message
 
         cfg = config_manager.config
+        self._host_command_queue = host_command_queue
         title_font = preferred_ui_font(18, "bold", master=root)
         body_font = preferred_ui_font(13, master=root)
         small_font = preferred_ui_font(11, master=root)
@@ -582,6 +629,286 @@ class MainDashboard:
             row=0, column=0, sticky="w", pady=(0, 12)
         )
 
+        sec_title_font = preferred_ui_font(15, "bold", master=root)
+
+        def _settings_section_card(row: int, title: str) -> Any:
+            card = ctk.CTkFrame(
+                settings,
+                fg_color=("#2C2C2E", "#2C2C2E"),
+                corner_radius=14,
+                border_width=1,
+                border_color=("#48484A", "#48484A"),
+            )
+            card.grid(row=row, column=0, sticky="ew", pady=(0, 12))
+            ctk.CTkLabel(card, text=title, font=sec_title_font, text_color="#F2F2F7").pack(
+                anchor="w", padx=16, pady=(14, 6)
+            )
+            return card
+
+        hotkeys_card = _settings_section_card(1, "⌨️ Управление (хоткеи)")
+        ctk.CTkLabel(
+            hotkeys_card,
+            text="Кликните в поле и нажмите сочетание. Escape — очистить поле. Вставка из буфера: Cmd/Ctrl+V.",
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=900,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 8))
+
+        var_hotkey = ctk.StringVar(value=cfg.hotkey or "")
+        var_journal_hk = ctk.StringVar(value=cfg.journal_hotkey or "")
+        var_cmd_hk = ctk.StringVar(value=cfg.command_mode_hotkey or "")
+
+        def _hotkey_field(parent: Any, label: str, var: Any) -> None:
+            row_f = ctk.CTkFrame(parent, fg_color="transparent")
+            row_f.pack(fill="x", padx=16, pady=(0, 8))
+            ctk.CTkLabel(row_f, text=label, font=body_font, text_color="#E5E5EA").pack(anchor="w")
+            ent = ctk.CTkEntry(row_f, textvariable=var, font=body_font, height=32)
+            ent.pack(fill="x", pady=(4, 0))
+            bind_hotkey_capture(ent, var.set)
+
+        _hotkey_field(hotkeys_card, "Основной хоткей (dictation)", var_hotkey)
+        _hotkey_field(hotkeys_card, "Дневник (journal_hotkey)", var_journal_hk)
+        _hotkey_field(hotkeys_card, "Командный режим (command_mode_hotkey)", var_cmd_hk)
+
+        ai_card = _settings_section_card(2, "🧠 ИИ и промпты")
+        llm_sw = ctk.CTkSwitch(ai_card, text="Включить LLM (llm_enabled)", font=body_font, progress_color=("#34C759", "#34C759"))
+        if cfg.llm_enabled:
+            llm_sw.select()
+        else:
+            llm_sw.deselect()
+        llm_sw.pack(anchor="w", padx=16, pady=(0, 10))
+
+        _mp_menu_values = [p for p in _MODEL_PROVIDER_MENU_ORDER if p in ALLOWED_MODEL_PROVIDERS] + sorted(
+            ALLOWED_MODEL_PROVIDERS - set(_MODEL_PROVIDER_MENU_ORDER)
+        )
+        _mp_init = cfg.model_provider if cfg.model_provider in ALLOWED_MODEL_PROVIDERS else "openai"
+        model_provider_var = ctk.StringVar(value=_mp_init)
+        ctk.CTkLabel(ai_card, text="Провайдер LLM (model_provider)", font=small_font, text_color="#AEAEB2").pack(
+            anchor="w", padx=16
+        )
+        model_provider_menu = ctk.CTkOptionMenu(
+            ai_card,
+            values=_mp_menu_values,
+            variable=model_provider_var,
+            font=body_font,
+            width=220,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+        )
+        model_provider_menu.pack(anchor="w", padx=16, pady=(4, 8))
+
+        ctk.CTkLabel(ai_card, text="Модель LLM (llm_model)", font=small_font, text_color="#AEAEB2").pack(anchor="w", padx=16)
+        llm_model_var = ctk.StringVar(value=cfg.llm_model or "gpt-4o-mini")
+
+        def _llm_preset_list_for(provider: str) -> list[str]:
+            base = list(_LLM_MODEL_PRESETS.get(provider, []))
+            cur = (llm_model_var.get() or "").strip()
+            if cur and cur not in base:
+                base.insert(0, cur)
+            return base if base else [cur or "gpt-4o-mini"]
+
+        llm_model_menu = ctk.CTkOptionMenu(
+            ai_card,
+            values=_llm_preset_list_for(_mp_init),
+            variable=llm_model_var,
+            font=body_font,
+            width=320,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+        )
+        llm_model_menu.pack(anchor="w", padx=16, pady=(4, 10))
+
+        def _on_model_provider_change(_: str | None = None) -> None:
+            prov = model_provider_var.get().strip().lower()
+            vals = _llm_preset_list_for(prov)
+            llm_model_menu.configure(values=vals)
+            if vals and llm_model_var.get() not in vals:
+                llm_model_var.set(str(vals[0]))
+
+        model_provider_menu.configure(command=_on_model_provider_change)
+        ctk.CTkLabel(ai_card, text="system_prompt", font=small_font, text_color="#AEAEB2").pack(anchor="w", padx=16)
+        system_prompt_box = ctk.CTkTextbox(ai_card, height=110, font=body_font, wrap="word")
+        system_prompt_box.pack(fill="x", padx=16, pady=(4, 8))
+        system_prompt_box.insert("1.0", cfg.system_prompt)
+        ctk.CTkLabel(ai_card, text="journal_system_prompt", font=small_font, text_color="#AEAEB2").pack(
+            anchor="w", padx=16
+        )
+        journal_prompt_box = ctk.CTkTextbox(ai_card, height=110, font=body_font, wrap="word")
+        journal_prompt_box.pack(fill="x", padx=16, pady=(4, 12))
+        journal_prompt_box.insert("1.0", cfg.journal_system_prompt)
+
+        stt_card = _settings_section_card(3, "🎙 Распознавание (Speech-to-Text)")
+        ctk.CTkLabel(stt_card, text="Движок (whisper_backend)", font=small_font, text_color="#AEAEB2").pack(
+            anchor="w", padx=16
+        )
+        _wb_values = sorted(ALLOWED_WHISPER_BACKENDS)
+        whisper_var = ctk.StringVar(
+            value=cfg.whisper_backend if cfg.whisper_backend in ALLOWED_WHISPER_BACKENDS else "local"
+        )
+        ctk.CTkOptionMenu(
+            stt_card,
+            values=_wb_values,
+            variable=whisper_var,
+            font=body_font,
+            width=200,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+        ).pack(anchor="w", padx=16, pady=(4, 4))
+        ctk.CTkLabel(
+            stt_card,
+            text=(
+                "После «Сохранить» основной процесс перечитывает конфиг и пересоздаёт STT/LLM "
+                "(перезапуск приложения не нужен)."
+            ),
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=900,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 6))
+        ctk.CTkLabel(stt_card, text="Модель STT (whisper_model)", font=small_font, text_color="#AEAEB2").pack(
+            anchor="w", padx=16
+        )
+        whisper_model_var = ctk.StringVar(value=cfg.whisper_model or "")
+        ctk.CTkEntry(stt_card, textvariable=whisper_model_var, font=body_font, height=32).pack(
+            fill="x", padx=16, pady=(4, 4)
+        )
+        ctk.CTkLabel(
+            stt_card,
+            text=_WHISPER_MODEL_HINTS,
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=900,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 10))
+        ctk.CTkLabel(stt_card, text="Язык (language)", font=small_font, text_color="#AEAEB2").pack(anchor="w", padx=16)
+        _lang_init = "auto" if cfg.language is None else cfg.language
+        if _lang_init not in ("ru", "en", "auto"):
+            _lang_init = "ru"
+        lang_var = ctk.StringVar(value=_lang_init)
+        ctk.CTkOptionMenu(
+            stt_card,
+            values=["ru", "en", "auto"],
+            variable=lang_var,
+            font=body_font,
+            width=200,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+        ).pack(anchor="w", padx=16, pady=(4, 12))
+
+        ui_card = _settings_section_card(4, "Внешний вид")
+        pill_sw = ctk.CTkSwitch(
+            ui_card,
+            text="Плавающий индикатор (floating_pill_enabled)",
+            font=body_font,
+            progress_color=("#34C759", "#34C759"),
+        )
+        if cfg.floating_pill_enabled:
+            pill_sw.select()
+        else:
+            pill_sw.deselect()
+        pill_sw.pack(anchor="w", padx=16, pady=(0, 12))
+        ctk.CTkLabel(
+            ui_card,
+            text="Смена pill вступит в силу после перезапуска приложения.",
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=900,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 8))
+
+        def sync_settings_widgets() -> None:
+            c = config_manager.config
+            var_hotkey.set(c.hotkey or "")
+            var_journal_hk.set(c.journal_hotkey or "")
+            var_cmd_hk.set(c.command_mode_hotkey or "")
+            if c.llm_enabled:
+                llm_sw.select()
+            else:
+                llm_sw.deselect()
+            mp = c.model_provider if c.model_provider in ALLOWED_MODEL_PROVIDERS else "openai"
+            model_provider_var.set(mp)
+            llm_model_var.set(c.llm_model or "gpt-4o-mini")
+            vals = _llm_preset_list_for(mp)
+            llm_model_menu.configure(values=vals)
+            if vals and llm_model_var.get() not in vals:
+                llm_model_var.set(str(vals[0]))
+            system_prompt_box.configure(state="normal")
+            system_prompt_box.delete("1.0", "end")
+            system_prompt_box.insert("1.0", c.system_prompt)
+            journal_prompt_box.configure(state="normal")
+            journal_prompt_box.delete("1.0", "end")
+            journal_prompt_box.insert("1.0", c.journal_system_prompt)
+            wb = c.whisper_backend if c.whisper_backend in ALLOWED_WHISPER_BACKENDS else "local"
+            whisper_var.set(wb)
+            whisper_model_var.set(c.whisper_model or "")
+            li = "auto" if c.language is None else c.language
+            if li not in ("ru", "en", "auto"):
+                li = "ru"
+            lang_var.set(li)
+            if c.floating_pill_enabled:
+                pill_sw.select()
+            else:
+                pill_sw.deselect()
+
+        save_row = ctk.CTkFrame(settings, fg_color="transparent")
+        save_row.grid(row=9, column=0, sticky="ew", pady=(4, 4))
+        save_feedback = ctk.CTkLabel(save_row, text="", font=body_font, text_color="#34C759")
+
+        def on_save_settings() -> None:
+            try:
+                lang_v = lang_var.get().strip().lower()
+                updates = {
+                    "hotkey": var_hotkey.get().strip().lower().replace(" ", ""),
+                    "journal_hotkey": var_journal_hk.get().strip().lower().replace(" ", ""),
+                    "command_mode_hotkey": var_cmd_hk.get().strip().lower().replace(" ", ""),
+                    "llm_enabled": bool(llm_sw.get()),
+                    "model_provider": model_provider_var.get().strip().lower(),
+                    "llm_model": llm_model_var.get().strip(),
+                    "system_prompt": system_prompt_box.get("1.0", "end").strip(),
+                    "journal_system_prompt": journal_prompt_box.get("1.0", "end").strip(),
+                    "whisper_backend": whisper_var.get().strip().lower(),
+                    "whisper_model": whisper_model_var.get().strip(),
+                    "language": lang_v,
+                    "floating_pill_enabled": bool(pill_sw.get()),
+                }
+                config_manager.update_and_save(updates)
+                sync_settings_widgets()
+                sync_secrets_panel()
+                if self._host_command_queue is not None:
+                    try:
+                        self._host_command_queue.put_nowait(reload_config_message())
+                    except Exception:
+                        LOGGER.warning("Не удалось отправить RELOAD_CONFIG в основной процесс", exc_info=True)
+                save_feedback.configure(
+                    text="Настройки сохранены и отправлены в основной процесс",
+                    text_color="#34C759",
+                )
+
+                def _clear_fb() -> None:
+                    try:
+                        if root.winfo_exists():
+                            save_feedback.configure(text="")
+                    except Exception:
+                        pass
+
+                root.after(5000, _clear_fb)
+            except Exception as exc:
+                save_feedback.configure(text=f"Ошибка: {exc}", text_color="#FF453A")
+
+        ctk.CTkButton(
+            save_row,
+            text="Сохранить изменения",
+            font=body_font,
+            height=40,
+            width=220,
+            corner_radius=10,
+            fg_color=("#0A84FF", "#0A84FF"),
+            hover_color=("#0066CC", "#0066CC"),
+            command=on_save_settings,
+        ).pack(side="left", padx=(0, 12), pady=4)
+        save_feedback.pack(side="left", pady=4)
+
         mic_card = ctk.CTkFrame(
             settings,
             fg_color=("#2C2C2E", "#2C2C2E"),
@@ -589,7 +916,7 @@ class MainDashboard:
             border_width=1,
             border_color=("#48484A", "#48484A"),
         )
-        mic_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        mic_card.grid(row=5, column=0, sticky="ew", pady=(0, 12))
         mic_title_font = preferred_ui_font(15, "bold", master=root)
         ctk.CTkLabel(mic_card, text="Микрофон", font=mic_title_font, text_color="#F2F2F7").pack(
             anchor="w", padx=16, pady=(14, 6)
@@ -727,7 +1054,7 @@ class MainDashboard:
             border_width=1,
             border_color=("#48484A", "#48484A"),
         )
-        privacy_card.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        privacy_card.grid(row=6, column=0, sticky="ew", pady=(0, 12))
         privacy_title_font = preferred_ui_font(15, "bold", master=root)
         ctk.CTkLabel(
             privacy_card,
@@ -796,7 +1123,7 @@ class MainDashboard:
             border_width=1,
             border_color=("#48484A", "#48484A"),
         )
-        api_card.grid(row=3, column=0, sticky="ew", pady=(0, 12))
+        api_card.grid(row=7, column=0, sticky="ew", pady=(0, 12))
         api_title_font = preferred_ui_font(15, "bold", master=root)
         ctk.CTkLabel(api_card, text="API-ключи", font=api_title_font, text_color="#F2F2F7").pack(
             anchor="w", padx=16, pady=(14, 6)
@@ -824,17 +1151,56 @@ class MainDashboard:
         )
         secrets_path_lbl.pack(anchor="w", padx=16, pady=(0, 6))
 
-        def _openai_masked_line() -> str:
-            v = config_manager.peek_secret("OPENAI_API_KEY")
-            return f"OPENAI_API_KEY: {_mask_secret(v)}"
+        def _secrets_panel_text() -> str:
+            c = config_manager.config
+            parts: list[str] = []
+            for name in iter_needed_secret_names(
+                model_provider=c.model_provider,
+                whisper_backend=c.whisper_backend,
+                llm_enabled=c.llm_enabled,
+            ):
+                v = config_manager.peek_secret(name)
+                parts.append(f"{name}: {_mask_secret(v)}")
+            if not parts:
+                parts.append("Для текущих настроек облачные ключи не обязательны (или LLM выключен).")
+            return "\n".join(parts)
 
-        openai_status_lbl = ctk.CTkLabel(
+        secrets_status_lbl = ctk.CTkLabel(
             api_card,
-            text=_openai_masked_line(),
+            text=_secrets_panel_text(),
             font=body_font,
             text_color="#E5E5EA",
+            justify="left",
+            anchor="w",
         )
-        openai_status_lbl.pack(anchor="w", padx=16, pady=(0, 6))
+        secrets_status_lbl.pack(anchor="w", padx=16, pady=(0, 6))
+
+        _all_secret_names = all_known_secret_env_names()
+        _needed_init = iter_needed_secret_names(
+            model_provider=cfg.model_provider,
+            whisper_backend=cfg.whisper_backend,
+            llm_enabled=cfg.llm_enabled,
+        )
+        _pick_init = _needed_init[0] if _needed_init else (_all_secret_names[0] if _all_secret_names else "OPENAI_API_KEY")
+        if _all_secret_names and _pick_init not in _all_secret_names:
+            _pick_init = _all_secret_names[0]
+        secret_target_var = ctk.StringVar(value=_pick_init)
+
+        pick_row = ctk.CTkFrame(api_card, fg_color="transparent")
+        pick_row.pack(fill="x", padx=16, pady=(0, 6))
+        ctk.CTkLabel(pick_row, text="Сохранить значение в переменную", font=small_font, text_color="#AEAEB2").pack(
+            side="left", padx=(0, 10)
+        )
+        secret_pick_menu = ctk.CTkOptionMenu(
+            pick_row,
+            values=_all_secret_names or ["OPENAI_API_KEY"],
+            variable=secret_target_var,
+            font=body_font,
+            width=220,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+        )
+        secret_pick_menu.pack(side="left")
 
         api_input_row = ctk.CTkFrame(api_card, fg_color="transparent")
         api_input_row.pack(fill="x", padx=16, pady=(0, 6))
@@ -843,32 +1209,43 @@ class MainDashboard:
             api_input_row,
             show="*",
             width=320,
-            placeholder_text="sk-… (новый ключ)",
+            placeholder_text="Вставьте ключ и нажмите «Сохранить»",
             font=body_font,
         )
         api_entry.pack(side="left", padx=(0, 10))
 
         api_save_status = ctk.CTkLabel(api_card, text="", font=small_font, text_color="#34C759")
-        api_save_status.pack(anchor="w", padx=16, pady=(0, 10))
+        api_save_status.pack(anchor="w", padx=16, pady=(0, 6))
 
-        def sync_openai_key_display() -> None:
-            openai_status_lbl.configure(text=_openai_masked_line())
+        def sync_secrets_panel() -> None:
+            secrets_status_lbl.configure(text=_secrets_panel_text())
             secrets_path_lbl.configure(text=f"Файл: {config_manager.secrets_env_path()}")
+            needed = iter_needed_secret_names(
+                model_provider=config_manager.config.model_provider,
+                whisper_backend=config_manager.config.whisper_backend,
+                llm_enabled=config_manager.config.llm_enabled,
+            )
+            cur = secret_target_var.get()
+            names = all_known_secret_env_names()
+            secret_pick_menu.configure(values=names or ["OPENAI_API_KEY"])
+            if needed and cur not in needed:
+                secret_target_var.set(needed[0])
 
-        def on_save_openai_key() -> None:
+        def on_save_api_secret() -> None:
             raw = api_entry.get().strip()
+            key_name = secret_target_var.get().strip()
             try:
-                config_manager.set_secret("OPENAI_API_KEY", raw)
+                config_manager.set_secret(key_name, raw)
                 api_entry.delete(0, "end")
-                sync_openai_key_display()
+                sync_secrets_panel()
                 if raw:
                     api_save_status.configure(
-                        text="Сохранено. Основной процесс подхватит ключ при следующем запросе к API.",
+                        text=f"Сохранено в {key_name}. Основной процесс подхватит при следующем запросе.",
                         text_color="#34C759",
                     )
                 else:
                     api_save_status.configure(
-                        text="Ключ удалён из файла секретов (если был).",
+                        text=f"Значение {key_name} удалено из файла секретов (если было).",
                         text_color="#8E8E93",
                     )
             except Exception as exc:
@@ -882,7 +1259,7 @@ class MainDashboard:
             height=34,
             corner_radius=10,
             fg_color=("#3A3A3C", "#3A3A3C"),
-            command=on_save_openai_key,
+            command=on_save_api_secret,
         ).pack(side="left", padx=(0, 8))
 
         ctk.CTkButton(
@@ -896,15 +1273,86 @@ class MainDashboard:
             command=lambda: api_entry.delete(0, "end"),
         ).pack(side="left")
 
+        test_conn_row = ctk.CTkFrame(api_card, fg_color="transparent")
+        test_conn_row.pack(fill="x", padx=16, pady=(4, 10))
+        connection_test_lbl = ctk.CTkLabel(
+            test_conn_row,
+            text="",
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=720,
+            justify="left",
+            anchor="w",
+        )
+        connection_test_lbl.pack(fill="x", pady=(6, 0))
+
+        def _run_llm_test_bg() -> None:
+            connection_test_lbl.configure(text="Проверка LLM…", text_color="#AEAEB2")
+
+            def work() -> None:
+                ok, msg = test_llm_connection(config_manager, config_manager.config)
+                color = "#34C759" if ok else "#FF453A"
+
+                def apply() -> None:
+                    try:
+                        if root.winfo_exists():
+                            connection_test_lbl.configure(text=f"LLM: {msg}", text_color=color)
+                    except Exception:
+                        pass
+
+                root.after(0, apply)
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _run_stt_test_bg() -> None:
+            connection_test_lbl.configure(text="Проверка STT…", text_color="#AEAEB2")
+
+            def work() -> None:
+                ok, msg = test_stt_connection(config_manager, config_manager.config)
+                color = "#34C759" if ok else "#FF453A"
+
+                def apply() -> None:
+                    try:
+                        if root.winfo_exists():
+                            connection_test_lbl.configure(text=f"STT: {msg}", text_color=color)
+                    except Exception:
+                        pass
+
+                root.after(0, apply)
+
+            threading.Thread(target=work, daemon=True).start()
+
+        ctk.CTkButton(
+            test_conn_row,
+            text="Проверить LLM",
+            font=body_font,
+            width=140,
+            height=32,
+            corner_radius=10,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            command=_run_llm_test_bg,
+        ).pack(side="left", padx=(0, 8), pady=(0, 0))
+        ctk.CTkButton(
+            test_conn_row,
+            text="Проверить STT",
+            font=body_font,
+            width=140,
+            height=32,
+            corner_radius=10,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            command=_run_stt_test_bg,
+        ).pack(side="left", padx=(0, 8), pady=(0, 0))
+
         reload_row = ctk.CTkFrame(settings, fg_color="transparent")
-        reload_row.grid(row=4, column=0, sticky="w", pady=12)
+        reload_row.grid(row=8, column=0, sticky="w", pady=12)
 
         def reload_cfg() -> None:
             try:
                 config_manager.reload()
+                sync_settings_widgets()
                 mic_var.set(label_for_device_index())
                 sync_history_switch()
-                sync_openai_key_display()
+                sync_secrets_panel()
                 restart_mic_meter_if_settings()
                 if current_page[0] == "history":
                     refresh_history_ui()
@@ -1014,12 +1462,17 @@ class MainDashboard:
         show_page("home")
 
 
-def mount_main_dashboard(root: Any, config_manager: "ConfigManager") -> None:
+def mount_main_dashboard(
+    root: Any,
+    config_manager: "ConfigManager",
+    host_command_queue: Any | None = None,
+) -> None:
     """
     Совместимая обёртка: монтирует дашборд в корневое окно.
 
     Args:
         root: Уже созданный ``ctk.CTk()``.
         config_manager: Менеджер конфигурации процесса дашборда.
+        host_command_queue: Опционально — очередь в основной процесс (IPC после сохранения настроек).
     """
-    MainDashboard(root, config_manager)
+    MainDashboard(root, config_manager, host_command_queue=host_command_queue)

@@ -25,24 +25,30 @@
 
 | Модуль | Назначение |
 |--------|------------|
-| `app_controller.py` | Жизненный цикл диктовки, hands-free/latch, command mode, reload конфига, связь со статусами и менеджерами истории/статистики. |
+| `app_controller.py` | Жизненный цикл диктовки, hands-free/latch, command mode, режим дневника, reload конфига, связь со статусами и менеджерами истории/статистики. |
 | `audio_engine.py` | Захват с `sounddevice`, чанки, WAV, метрики `peak`/`rms` в логах. |
 | `config_manager.py` | JSON-конфиг, валидация, секреты, `patch_audio_input_device`, `patch_enable_history`. |
 | `provider_factory.py` | Создание STT/LLM по `AppConfig`. |
+| `provider_credentials.py` | Карта `provider/backend -> ENV key`, валидация допустимых провайдеров и подсказки для UI. |
 | `llm_processor.py` | Вызов LLM с промптами. |
 | `interfaces.py` | Абстракции провайдеров и вывода. |
 | `history_manager.py` | SQLite, WAL, лимит записей. |
+| `journal_manager.py` | Таблица `journal_entries` в `history.db`, CRUD записей дневника и теги. |
 | `stats_manager.py` | `stats.json`, оценка «сэкономленного времени». |
 | `glossary_manager.py` | Пользовательский JSON-глоссарий. |
 | `mic_meter_controller.py` | Логика метра/индикации микрофона для UI. |
 | `hotkey_spec.py` | Парсинг строк хоткеев. |
+| `api_selftest.py` | Проверка доступности STT/LLM провайдеров и ключей из UI. |
 | `logging_config.py` | `setup_logging()`: stderr + файл при `sys.frozen`. |
 
 ## Компоненты `app/providers`
 
 - **`faster_whisper_provider.py`** — локальный inference, VAD из пакета, опционально streaming.
-- **`openai_whisper_provider.py`** — API транскрипции.
+- **`openai_whisper_provider.py`** — API транскрипции OpenAI.
+- **`groq_whisper_provider.py`** — API транскрипции Groq.
+- **`deepgram_transcription_provider.py`** — API транскрипции Deepgram.
 - **`openai_llm_provider.py`** — чат-комплишены OpenAI.
+- **`litellm_llm_provider.py`** — единый LLM-клиент через LiteLLM для `groq/anthropic/gemini/google/openrouter/mistral/cohere/ollama`.
 
 ## Компоненты `app/platform`
 

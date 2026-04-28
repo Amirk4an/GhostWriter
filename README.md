@@ -1,6 +1,6 @@
 # Ghost Writer (VoiceFlow WL)
 
-Диктовка с глобальным хоткеем: запись с микрофона → STT (локальный **faster-whisper** или **OpenAI Whisper**) → опциональная постобработка через LLM → вставка текста в активное приложение.
+Диктовка с глобальным хоткеем: запись с микрофона → STT (локальный **faster-whisper** или облачный **OpenAI/Groq/Deepgram**) → опциональная постобработка через LLM → вставка текста в активное приложение.
 
 Запуск из консоли: `python3 main.py` (на macOS команды `python` часто нет в `PATH`). В трее — статус и меню; опционально плавающий индикатор (pill) и отдельный **Dashboard** (история, статистика, ключ API).
 
@@ -74,8 +74,8 @@
 |------|------------|
 | `main.py` | Точка входа: `freeze_support()`, режим `spawn`, защита от дочернего процесса, вызов `run_voiceflow_application()`. |
 | `app/main_runtime.py` | Сборка пайплайна: конфиг, провайдеры STT/LLM, аудио, вывод, `AppController`, процессы pill и дашборда, хоткеи, трей, сигналы `SIGINT`/`SIGTERM`. |
-| `app/core/` | `app_controller`, `audio_engine`, `config_manager`, `provider_factory`, `llm_processor`, `interfaces`, `history_manager`, `stats_manager`, `glossary_manager`, `mic_meter_controller`, `hotkey_spec`, `logging_config`. |
-| `app/providers/` | STT и LLM: faster-whisper, OpenAI Whisper, OpenAI LLM. |
+| `app/core/` | `app_controller`, `audio_engine`, `config_manager`, `provider_factory`, `provider_credentials`, `llm_processor`, `interfaces`, `history_manager`, `journal_manager`, `stats_manager`, `glossary_manager`, `mic_meter_controller`, `hotkey_spec`, `api_selftest`, `logging_config`. |
+| `app/providers/` | STT и LLM: `faster_whisper_provider`, `openai_whisper_provider`, `groq_whisper_provider`, `deepgram_transcription_provider`, `openai_llm_provider`, `litellm_llm_provider`. |
 | `app/platform/` | Хоткеи, вывод, `paths.py`, macOS/Windows-модули, `single_instance`, `gui_availability`, `audio_devices`. |
 | `app/ui/` | Трей, pill, дашборд, IPC статусов. |
 | `config/` | `config.json`, глоссарий и связанные файлы. |

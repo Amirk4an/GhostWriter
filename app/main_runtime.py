@@ -127,6 +127,7 @@ def run_voiceflow_application() -> None:
     from app.platform.hotkey_listener import PynputHotkeyListener
     from app.platform.output_controller import ClipboardOutputController
     from app.ui.dashboard_process import DASHBOARD_FOCUS_RAISE, run_dashboard_process
+    from app.ui.pill_ipc import ACTION_RELOAD_CONFIG
     from app.ui.pill_process_entry import run_floating_pill_process
     from app.ui.status_bridge import StatusBridge
     from app.ui.tray_app import TrayApplication
@@ -142,7 +143,11 @@ def run_voiceflow_application() -> None:
     provider_factory = ProviderFactory(config_manager)
     transcription_provider = provider_factory.create_transcription_provider(config)
     llm_provider = provider_factory.create_llm_provider(config)
-    llm_processor = LLMProcessor(provider=llm_provider, enabled=config.llm_enabled)
+    llm_processor = LLMProcessor(
+        provider=llm_provider,
+        enabled=config.llm_enabled,
+        model_provider=config.model_provider,
+    )
     audio_engine = AudioEngine(
         sample_rate=config.sample_rate,
         channels=config.channels,
@@ -187,6 +192,10 @@ def run_voiceflow_application() -> None:
     app_controller.mp_pill_status_queue = pill_queue
     app_controller.mp_pill_command_queue = pill_command_queue
 
+    host_command_queue: MPQueue | None = None
+    if not _no_tk:
+        host_command_queue = mp_queue_factory(maxsize=16)
+
     dashboard_proc_ref: list[Process | None] = [None]
     dashboard_focus_queue_ref: list[MPQueue | None] = [None]
 
@@ -216,7 +225,7 @@ def run_voiceflow_application() -> None:
         try:
             proc = Process(
                 target=run_dashboard_process,
-                args=(config_json_path, focus_q),
+                args=(config_json_path, focus_q, host_command_queue),
                 daemon=False,
                 name="GhostWriterDashboard",
             )
@@ -265,19 +274,61 @@ def run_voiceflow_application() -> None:
         )
         pill_proc.start()
 
-    cmd = bool(config.command_mode_hotkey.strip())
-    jrn = bool(getattr(config, "journal_hotkey", "").strip())
-    hotkey_listener = PynputHotkeyListener(
-        config.hotkey,
-        config.command_mode_hotkey,
-        getattr(config, "journal_hotkey", "") or "",
-    )
-    hotkey_listener.start(
-        dictate_edge=app_controller.handle_dictate_edge,
-        command_press=app_controller.on_command_hotkey_press if cmd else None,
-        command_release=app_controller.on_command_hotkey_release if cmd else None,
-        journal_edge=app_controller.handle_journal_edge if jrn else None,
-    )
+    hotkey_listener_ref: list[PynputHotkeyListener | None] = [None]
+
+    def restart_hotkeys() -> None:
+        """Пересоздаёт слушатель глобальных хоткеев после смены конфига."""
+        old = hotkey_listener_ref[0]
+        if old is not None:
+            try:
+                old.stop()
+            except Exception:  # noqa: BLE001
+                LOGGER.debug("Остановка PynputHotkeyListener", exc_info=True)
+            hotkey_listener_ref[0] = None
+        cfg2 = config_manager.config
+        cmd_h = bool(cfg2.command_mode_hotkey.strip())
+        jh = bool((getattr(cfg2, "journal_hotkey", "") or "").strip())
+        h = PynputHotkeyListener(
+            cfg2.hotkey,
+            cfg2.command_mode_hotkey,
+            getattr(cfg2, "journal_hotkey", "") or "",
+        )
+        h.start(
+            dictate_edge=app_controller.handle_dictate_edge,
+            command_press=app_controller.on_command_hotkey_press if cmd_h else None,
+            command_release=app_controller.on_command_hotkey_release if cmd_h else None,
+            journal_edge=app_controller.handle_journal_edge if jh else None,
+        )
+        hotkey_listener_ref[0] = h
+        LOGGER.info(
+            "Hotkeys перезапущены: dictate=%s journal=%s command=%s",
+            cfg2.hotkey,
+            getattr(cfg2, "journal_hotkey", "") or "—",
+            cfg2.command_mode_hotkey or "—",
+        )
+
+    restart_hotkeys()
+
+    if host_command_queue is not None:
+
+        def _host_dashboard_ipc_loop() -> None:
+            while True:
+                try:
+                    msg = host_command_queue.get(timeout=0.5)
+                except QueueEmpty:
+                    continue
+                if isinstance(msg, dict) and msg.get("action") == ACTION_RELOAD_CONFIG:
+                    try:
+                        app_controller.reload_config()
+                        restart_hotkeys()
+                    except Exception:  # noqa: BLE001
+                        LOGGER.exception("RELOAD_CONFIG из дашборда")
+
+        threading.Thread(
+            target=_host_dashboard_ipc_loop,
+            daemon=True,
+            name="GhostHostDashboardIpc",
+        ).start()
 
     shutdown_once: list[bool] = [False]
 
@@ -286,9 +337,15 @@ def run_voiceflow_application() -> None:
             return
         shutdown_once[0] = True
         app_controller.prepare_process_shutdown()
-        hotkey_listener.stop()
+        hk = hotkey_listener_ref[0]
+        if hk is not None:
+            hk.stop()
         _terminate_child_process(dashboard_proc_ref[0], "Дашборд")
         _terminate_child_process(pill_proc, "Pill")
+
+    def _tray_reload_config() -> None:
+        app_controller.reload_config()
+        restart_hotkeys()
 
     def _tray_status_line() -> str:
         st, detail = status_bridge.snapshot()
@@ -306,7 +363,7 @@ def run_voiceflow_application() -> None:
     tray = TrayApplication(
         config_manager=config_manager,
         status_provider=_tray_status_line,
-        on_reload_config=app_controller.reload_config,
+        on_reload_config=_tray_reload_config,
         on_quit=on_quit,
         on_open_dashboard=spawn_dashboard_process,
     )
