@@ -1326,7 +1326,7 @@
 		</data>
 		<key>Resources/base_library.zip</key>
 		<data>
-		eOYXFr3f3IN+5PCo5TEs5TWupeM=
+		BwMy2TMU+Xyl33W5byeXQAP/u0M=
 		</data>
 		<key>Resources/certifi/cacert.pem</key>
 		<data>
@@ -1711,6 +1711,10 @@
 		<key>Resources/litellm-1.83.12.dist-info/licenses/LICENSE</key>
 		<data>
 		ozvIxDLAjG4KzbacWqCZg6S1iiw=
+		</data>
+		<key>Resources/litellm/model_prices_and_context_window_backup.json</key>
+		<data>
+		AvNcgm2fxInWTEwgkm5Vs3Tnm9M=
 		</data>
 		<key>Resources/markupsafe-3.0.3.dist-info/INSTALLER</key>
 		<data>
@@ -3508,6 +3512,11 @@
 		<dict>
 			<key>symlink</key>
 			<string>PIL/.dylibs/libz.1.3.1.zlib-ng.dylib</string>
+		</dict>
+		<key>Frameworks/litellm</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/litellm</string>
 		</dict>
 		<key>Frameworks/litellm-1.83.12.dist-info</key>
 		<dict>
@@ -7563,7 +7572,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			UL2SGFiyGUkR/0rC2GA46zD8e1ezXDSULGhf8gvlZLg=
+			gdZzWT1ljWjEyrcipPqvFSyjzNJmhzKbcudtNJfX6GE=
 			</data>
 		</dict>
 		<key>Resources/certifi/cacert.pem</key>
@@ -8536,6 +8545,13 @@
 			<key>hash2</key>
 			<data>
 			sXDWv46INd01fgEWgdsCj01R4vsOqJIFj1bgH7ObgnM=
+			</data>
+		</dict>
+		<key>Resources/litellm/model_prices_and_context_window_backup.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			SVbo9tzauhqFstl+m7+yrhX1J99vC+ejG9atgpyE0jA=
 			</data>
 		</dict>
 		<key>Resources/markupsafe</key>

@@ -21,6 +21,12 @@ if _ck and _ck.submodule_search_locations:
     _ck_root = Path(list(_ck.submodule_search_locations)[0])
     _datas.append((str(_ck_root), "customtkinter"))
 _datas += collect_data_files('faster_whisper')
+_litellm = importlib.util.find_spec("litellm")
+if _litellm and _litellm.submodule_search_locations:
+    _litellm_root = Path(list(_litellm.submodule_search_locations)[0])
+    _litellm_backup = _litellm_root / "model_prices_and_context_window_backup.json"
+    if _litellm_backup.is_file():
+        _datas.append((str(_litellm_backup), "litellm"))
 _models_dir = _SPEC_ROOT / "assets" / "models"
 if _models_dir.is_dir():
     _datas.append((str(_models_dir), "assets/models"))
