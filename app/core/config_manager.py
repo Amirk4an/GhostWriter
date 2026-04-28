@@ -246,6 +246,31 @@ class ConfigManager:
         """Возвращает секрет без исключения (для UI и проверок)."""
         return self._read_secret_layered(key)
 
+    def secret_source(self, key: str) -> str:
+        """
+        Возвращает источник секрета для UI.
+
+        Возможные значения:
+        - ``secrets_file``: найден в пользовательском ``.env.secrets``;
+        - ``local_env``: найден в локальном ``.env`` (режим разработки);
+        - ``environment``: найден в ``os.environ``;
+        - ``missing``: не найден.
+        """
+        user_path = self.secrets_env_path()
+        if user_path.is_file():
+            raw = dotenv_values(user_path).get(key)
+            if raw is not None and str(raw).strip():
+                return "secrets_file"
+        for candidate in self._local_dotenv_candidates():
+            if candidate.is_file():
+                raw = dotenv_values(candidate).get(key)
+                if raw is not None and str(raw).strip():
+                    return "local_env"
+        v = os.getenv(key)
+        if v is not None and str(v).strip():
+            return "environment"
+        return "missing"
+
     def get_secret(self, key: str) -> str:
         """Возвращает секрет (каждый раз с диска / окружения — актуально после записи из дашборда)."""
         value = self._read_secret_layered(key)
@@ -274,6 +299,23 @@ class ConfigManager:
             if path.is_file():
                 unset_key(path_str, key)
             os.environ.pop(key, None)
+
+    def delete_secret(self, key: str, *, everywhere: bool = False) -> None:
+        """
+        Удаляет секрет по имени.
+
+        По умолчанию удаляет только из пользовательского ``.env.secrets`` и текущего процесса.
+        Если ``everywhere=True``, дополнительно удаляет из локальных ``.env`` рядом с ``config.json`` и cwd.
+        """
+        path = self.secrets_env_path()
+        path_str = str(path)
+        if path.is_file():
+            unset_key(path_str, key)
+        os.environ.pop(key, None)
+        if everywhere:
+            for candidate in self._local_dotenv_candidates():
+                if candidate.is_file():
+                    unset_key(str(candidate), key)
 
     def _read_json(self) -> dict[str, Any]:
         try:

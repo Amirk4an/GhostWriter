@@ -1151,29 +1151,8 @@ class MainDashboard:
         )
         secrets_path_lbl.pack(anchor="w", padx=16, pady=(0, 6))
 
-        def _secrets_panel_text() -> str:
-            c = config_manager.config
-            parts: list[str] = []
-            for name in iter_needed_secret_names(
-                model_provider=c.model_provider,
-                whisper_backend=c.whisper_backend,
-                llm_enabled=c.llm_enabled,
-            ):
-                v = config_manager.peek_secret(name)
-                parts.append(f"{name}: {_mask_secret(v)}")
-            if not parts:
-                parts.append("Для текущих настроек облачные ключи не обязательны (или LLM выключен).")
-            return "\n".join(parts)
-
-        secrets_status_lbl = ctk.CTkLabel(
-            api_card,
-            text=_secrets_panel_text(),
-            font=body_font,
-            text_color="#E5E5EA",
-            justify="left",
-            anchor="w",
-        )
-        secrets_status_lbl.pack(anchor="w", padx=16, pady=(0, 6))
+        secrets_rows_host = ctk.CTkFrame(api_card, fg_color="transparent")
+        secrets_rows_host.pack(fill="x", padx=16, pady=(0, 6))
 
         _all_secret_names = all_known_secret_env_names()
         _needed_init = iter_needed_secret_names(
@@ -1217,19 +1196,109 @@ class MainDashboard:
         api_save_status = ctk.CTkLabel(api_card, text="", font=small_font, text_color="#34C759")
         api_save_status.pack(anchor="w", padx=16, pady=(0, 6))
 
-        def sync_secrets_panel() -> None:
-            secrets_status_lbl.configure(text=_secrets_panel_text())
-            secrets_path_lbl.configure(text=f"Файл: {config_manager.secrets_env_path()}")
-            needed = iter_needed_secret_names(
-                model_provider=config_manager.config.model_provider,
-                whisper_backend=config_manager.config.whisper_backend,
-                llm_enabled=config_manager.config.llm_enabled,
+        secret_source_lbl = ctk.CTkLabel(api_card, text="", font=small_font, text_color="#8E8E93")
+        secret_source_lbl.pack(anchor="w", padx=16, pady=(0, 6))
+
+        def _secret_source_text(key_name: str) -> str:
+            source = config_manager.secret_source(key_name)
+            if source == "secrets_file":
+                return "Источник: .env.secrets (управляется из приложения)"
+            if source == "local_env":
+                return "Источник: локальный .env (режим разработки)"
+            if source == "environment":
+                return "Источник: переменная окружения процесса"
+            return "Источник: ключ не найден"
+
+        def _delete_secret(key_name: str, *, everywhere: bool) -> None:
+            try:
+                config_manager.delete_secret(key_name, everywhere=everywhere)
+                if secret_target_var.get().strip() == key_name:
+                    api_entry.delete(0, "end")
+                sync_secrets_panel()
+                if everywhere:
+                    api_save_status.configure(
+                        text=(
+                            f"{key_name} удалён из .env.secrets, локальных .env и текущих переменных "
+                            "окружения процесса."
+                        ),
+                        text_color="#8E8E93",
+                    )
+                else:
+                    api_save_status.configure(
+                        text=f"{key_name} удалён из .env.secrets и из текущей сессии приложения.",
+                        text_color="#8E8E93",
+                    )
+            except Exception as exc:
+                api_save_status.configure(text=f"Ошибка удаления: {exc}", text_color="#FF453A")
+
+        def _render_secrets_rows() -> None:
+            for w in secrets_rows_host.winfo_children():
+                w.destroy()
+            names = all_known_secret_env_names()
+            required_names = set(
+                iter_needed_secret_names(
+                    model_provider=config_manager.config.model_provider,
+                    whisper_backend=config_manager.config.whisper_backend,
+                    llm_enabled=config_manager.config.llm_enabled,
+                )
             )
+            has_any = False
+            for name in names:
+                value = config_manager.peek_secret(name)
+                if not value and name not in required_names:
+                    continue
+                has_any = True
+                row = ctk.CTkFrame(secrets_rows_host, fg_color="transparent")
+                row.pack(fill="x", pady=(0, 4))
+                ctk.CTkLabel(
+                    row,
+                    text=f"{name}: {_mask_secret(value)}",
+                    font=body_font,
+                    text_color="#E5E5EA" if value else "#AEAEB2",
+                    anchor="w",
+                ).pack(side="left", padx=(0, 10))
+                if value:
+                    ctk.CTkButton(
+                        row,
+                        text="Удалить (.env.secrets)",
+                        font=body_font,
+                        width=170,
+                        height=30,
+                        corner_radius=10,
+                        fg_color=("#5C2C2C", "#5C2C2C"),
+                        hover_color=("#7A3838", "#7A3838"),
+                        command=lambda k=name: _delete_secret(k, everywhere=False),
+                    ).pack(side="left", padx=(0, 8))
+                    ctk.CTkButton(
+                        row,
+                        text="Удалить везде",
+                        font=body_font,
+                        width=130,
+                        height=30,
+                        corner_radius=10,
+                        fg_color=("#7A5A2C", "#7A5A2C"),
+                        hover_color=("#8A6A34", "#8A6A34"),
+                        command=lambda k=name: _delete_secret(k, everywhere=True),
+                    ).pack(side="left")
+            if not has_any:
+                ctk.CTkLabel(
+                    secrets_rows_host,
+                    text="Для текущих настроек облачные ключи не обязательны (или LLM выключен).",
+                    font=body_font,
+                    text_color="#AEAEB2",
+                    justify="left",
+                    anchor="w",
+                ).pack(anchor="w")
+
+        def sync_secrets_panel() -> None:
+            _render_secrets_rows()
+            secrets_path_lbl.configure(text=f"Файл: {config_manager.secrets_env_path()}")
             cur = secret_target_var.get()
             names = all_known_secret_env_names()
             secret_pick_menu.configure(values=names or ["OPENAI_API_KEY"])
-            if needed and cur not in needed:
-                secret_target_var.set(needed[0])
+            if cur not in names and names:
+                secret_target_var.set(names[0])
+            secret_source_lbl.configure(text=_secret_source_text(secret_target_var.get().strip()))
 
         def on_save_api_secret() -> None:
             raw = api_entry.get().strip()
@@ -1272,6 +1341,9 @@ class MainDashboard:
             fg_color=("#48484A", "#48484A"),
             command=lambda: api_entry.delete(0, "end"),
         ).pack(side="left")
+
+        secret_pick_menu.configure(command=lambda _: sync_secrets_panel())
+        sync_secrets_panel()
 
         test_conn_row = ctk.CTkFrame(api_card, fg_color="transparent")
         test_conn_row.pack(fill="x", padx=16, pady=(4, 10))

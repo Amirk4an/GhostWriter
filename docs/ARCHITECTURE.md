@@ -14,7 +14,7 @@
 
 1. Пользователь нажимает глобальный хоткей (**pynput**, `PynputHotkeyListener`).
 2. **`AudioEngine`** записывает PCM в буфер и при необходимости формирует WAV для STT.
-3. **STT-провайдер** (`FasterWhisperProvider` или `OpenAIWhisperProvider` через `ProviderFactory`) выполняет транскрипцию (в т.ч. стриминг при включённой опции в конфиге).
+3. **STT-провайдер** (`FasterWhisperProvider`, `OpenAIWhisperProvider`, `GroqWhisperProvider` или `DeepgramTranscriptionProvider` через `ProviderFactory`) выполняет транскрипцию (в т.ч. стриминг при включённой опции в конфиге).
 4. **`LLMProcessor`** при `llm_enabled` применяет system prompt (контекст активного приложения из `macos_focus` / глоссарий / `app_context_prompts`).
 5. **`ClipboardOutputController`** вставляет результат: на **macOS** — буфер обмена + AppleScript/System Events и pynput; на **Windows** — pyperclip + поднятие переднего окна (`windows/focus.py`) + Ctrl+V; на прочих ОС — по возможности аналогично без AppleScript.
 6. При успехе опционально **`HistoryManager`** (SQLite) и **`StatsManager`** (JSON).
@@ -50,6 +50,8 @@
 - **`openai_llm_provider.py`** — чат-комплишены OpenAI.
 - **`litellm_llm_provider.py`** — единый LLM-клиент через LiteLLM для `groq/anthropic/gemini/google/openrouter/mistral/cohere/ollama`.
 
+`litellm_llm_provider.py` поддерживает fallback для JSON-режима дневника: сначала попытка `response_format={"type":"json_object"}`, затем текстовый JSON с последующим парсингом/извлечением объекта.
+
 ## Компоненты `app/platform`
 
 | Модуль | Назначение |
@@ -83,5 +85,6 @@
 
 - Спецификация: **`GhostWriter.spec`** в корне (комментарии внутри файла про `SPECPATH`, `BUNDLE` только на Darwin).
 - Скрипт: **`build.py`** — альтернативный путь вызова PyInstaller с постобработкой plist на macOS.
+- Для LiteLLM в frozen-бандл добавляются ресурсы `litellm/tiktoken` и fallback-файл `model_prices_and_context_window_backup.json` (см. `GhostWriter.spec`), чтобы не зависеть от внешнего состояния окружения.
 
 Общий чеклист для разработчика — в [../README.md](../README.md#сборка-pyinstaller).

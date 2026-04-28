@@ -18,7 +18,7 @@
 | `whisper_backend` | `local` (faster-whisper), `openai`, `groq`, `deepgram`. |
 | `whisper_model` | Имя модели API: `whisper-1` (OpenAI), `whisper-large-v3-turbo` (Groq), `nova-2` (Deepgram) и т.д. |
 | `local_whisper_model` | Имя модели/каталога для faster-whisper. |
-| `llm_model` | Для `openai` — имя модели чата (например `gpt-4o-mini`). Для LiteLLM — короткое имя модели **без** префикса провайдера (например `llama-3.1-8b-instant` для `groq`) или полный идентификатор с `/` (например `openai/gpt-4o-mini` для OpenRouter). |
+| `llm_model` | Для `openai` — имя модели чата (например `gpt-4o-mini`). Для LiteLLM — короткое имя модели **без** префикса провайдера (например `llama-3.1-8b-instant` для `groq`) или полный идентификатор с `/` (например `openai/gpt-4o-mini` для OpenRouter). Внутри `LiteLLMLLMProvider` короткое имя преобразуется в `<provider>/<model>`, при `model_provider=google` используется префикс `gemini`. |
 | `llm_enabled` | `true` / `false` — включать ли постобработку LLM. |
 | `sample_rate` | Гц, обычно `16000`. |
 | `channels` | Чаще `1` (моно). |
@@ -196,6 +196,15 @@
 | STT | `local` | — |
 
 После сохранения настроек в дашборде основной процесс получает **`RELOAD_CONFIG`**: конфиг и **провайдеры STT/LLM пересоздаются** без полного перезапуска приложения.
+
+### Проверка подключения API (Dashboard)
+
+В дашборде используется `app/core/api_selftest.py`:
+
+- LLM: минимальный вызов к текущему провайдеру (`OpenAI` напрямую или `LiteLLM`).
+- STT: проверка ключа через легковесные endpoint'ы (`/models` для OpenAI/Groq, `/v1/projects` для Deepgram).
+
+Эти проверки не требуют записи аудио и нужны для быстрой диагностики секретов/доступности API.
 
 ### Прочее
 

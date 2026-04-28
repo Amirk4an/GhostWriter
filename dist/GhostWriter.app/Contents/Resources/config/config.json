@@ -24,7 +24,7 @@
     "Notion": "Стиль: нейтральный, структурированный."
   },
   "user_glossary_path": "user_glossary.json",
-  "model_provider": "openai",
+  "model_provider": "gemini",
   "whisper_backend": "local",
   "whisper_model": "whisper-1",
   "local_whisper_model": "small",
@@ -34,7 +34,7 @@
     "device": "cpu",
     "compute_type": "int8"
   },
-  "llm_model": "gpt-4o-mini",
+  "llm_model": "gemini-2.0-flash",
   "llm_enabled": true,
   "sample_rate": 16000,
   "channels": 1,

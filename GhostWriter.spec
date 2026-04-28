@@ -13,6 +13,9 @@ hiddenimports = ["customtkinter", "pystray", "pynput", "faster_whisper", "soundd
 if sys.platform == "darwin":
     hiddenimports.append("rumps")
 hiddenimports += collect_submodules("app")
+hiddenimports += collect_submodules("litellm")
+hiddenimports += collect_submodules("tiktoken")
+hiddenimports += collect_submodules("tiktoken_ext")
 
 # faster-whisper VAD (onnx) и прочие ресурсы пакета — без этого в .app падает загрузка silero_vad_v6.onnx.
 _datas = [(str(_SPEC_ROOT / "config"), "config")]
@@ -21,6 +24,9 @@ if _ck and _ck.submodule_search_locations:
     _ck_root = Path(list(_ck.submodule_search_locations)[0])
     _datas.append((str(_ck_root), "customtkinter"))
 _datas += collect_data_files('faster_whisper')
+_datas += collect_data_files("litellm")
+_datas += collect_data_files("tiktoken")
+_datas += collect_data_files("tiktoken_ext")
 _litellm = importlib.util.find_spec("litellm")
 if _litellm and _litellm.submodule_search_locations:
     _litellm_root = Path(list(_litellm.submodule_search_locations)[0])
