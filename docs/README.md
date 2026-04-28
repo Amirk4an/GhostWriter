@@ -1,10 +1,10 @@
 # Документация Ghost Writer (VoiceFlow WL)
 
-Краткий указатель файлов. Актуальность сверяйте с кодом в репозитории.
+Технический индекс документации. Основной обзор продукта и быстрый старт находятся в корневом [`../README.md`](../README.md).
 
 | Документ | Содержание |
 |----------|------------|
-| [../README.md](../README.md) | Обзор продукта, быстрый старт, структура репозитория, сборка PyInstaller, данные на диске, типовые проблемы. |
+| [../README.md](../README.md) | Главная точка входа: обзор, быстрый старт, сборка, troubleshooting и ограничения платформ. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Пайплайн диктовки и дневника, модули `app/core`, `app/providers`, `app/platform`, `app/ui`, процессы и очереди. |
 | [CONFIGURATION.md](CONFIGURATION.md) | Все ключи `config/config.json`, `stt_local`, секреты, переменные окружения, различия macOS / Windows / Linux. |
 | [../assets/models/README.md](../assets/models/README.md) | Офлайн-веса faster-whisper для режима `stt_local.model_source: bundle`. |

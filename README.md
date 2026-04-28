@@ -4,7 +4,7 @@
 
 Запуск из консоли: `python3 main.py` (на macOS команды `python` часто нет в `PATH`). В трее — статус и меню; опционально плавающий индикатор (pill) и отдельный **Dashboard** (история, статистика, ключ API).
 
-**Документация:** [docs/README.md](docs/README.md) (указатель) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/CONFIGURATION.md](docs/CONFIGURATION.md) · [assets/models/README.md](assets/models/README.md)
+**Документация:** этот `README.md` — основная точка входа (обзор, запуск, сборка, troubleshooting). Технические детали: [docs/README.md](docs/README.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/CONFIGURATION.md](docs/CONFIGURATION.md) · [assets/models/README.md](assets/models/README.md)
 
 ## Требования
 
@@ -35,6 +35,22 @@
 
 - **macOS (Cmd+V):** **Системные настройки → Конфиденциальность и безопасность → Универсальный доступ** — разрешите приложение, из которого запущен Ghost Writer (**Terminal**, **Cursor**, **iTerm**, **Python**). Ошибка **1002** / System Events — проверьте права для **System Events**. При сбое текст часто уже в буфере — **Cmd+V** вручную.
 - **Windows (Ctrl+V):** перед вставкой поднимается переднее окно (`app/platform/windows/focus.py`). Текст кладётся через **pyperclip**; целевое приложение должно принимать вставку из буфера.
+
+## Known Limitations / Roadmap
+
+### Command mode: паритет платформ
+
+- **Сейчас:** чтение выделенного текста для voice-editing реализовано только на macOS через Accessibility API (`app/platform/macos_ax_selection.py`).
+- **Windows/Linux:** режим редактирования выделения пока ограничен из-за отсутствия реализованного нативного backend-а чтения selection.
+
+План для Windows (поэтапно):
+
+1. **MVP fallback:** `Ctrl+C` -> чтение текста из clipboard -> обработка через LLM -> `Ctrl+V`.
+2. **Надёжность пайплайна:** защита от race conditions буфера, таймауты ожидания, восстановление исходного clipboard.
+3. **Edge cases:** пустое выделение, защищённые/неподдерживаемые поля ввода, приложения с нестандартными хоткеями вставки.
+4. **UX-полировка:** явный статус в UI/логах при невозможности безопасно прочитать выделение.
+
+Linux-поддержка планируется после стабилизации Windows fallback и унификации поведения command mode.
 
 ## Быстрый старт
 
@@ -155,6 +171,18 @@ pyinstaller GhostWriter.spec --clean
 
 - **macOS:** **Универсальный доступ** и при необходимости **Мониторинг ввода** для того же процесса; для **F8** иногда **Fn+F8**.
 - **Windows:** при отсутствии реакции проверьте конфликт с другими хуками и при необходимости запуск от администратора (редко нужно в обычной сессии).
+
+### Проблема с single-instance lock (macOS/Linux)
+
+Если после аварийного завершения приложение сообщает, что второй экземпляр уже запущен:
+
+1. Убедитесь, что процесса GhostWriter действительно нет в системе.
+2. Удалите файл блокировки в каталоге данных приложения:
+   - macOS: `~/Library/Application Support/GhostWriter/single_instance.lock`
+   - Linux: `~/.ghostwriter/single_instance.lock`
+3. Запустите приложение повторно.
+
+На Windows используется mutex, поэтому ручное удаление lock-файла обычно не требуется.
 
 ### `command not found: compdef` (OpenClaw / zsh)
 

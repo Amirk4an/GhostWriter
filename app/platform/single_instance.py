@@ -4,13 +4,30 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
 import sys
+import time
 from typing import BinaryIO
 
 LOGGER = logging.getLogger(__name__)
 
 _lock_fp: BinaryIO | None = None
 _win_mutex_handle: object | None = None
+
+
+def _write_unix_lock_metadata(fp: BinaryIO, support_subdir: str) -> None:
+    """Обновляет lock-файл диагностическими данными текущего процесса."""
+    payload = (
+        "{\n"
+        f'  "pid": {os.getpid()},\n'
+        f'  "support_subdir": "{support_subdir}",\n'
+        f'  "created_at_unix": {int(time.time())}\n'
+        "}\n"
+    ).encode("utf-8", errors="ignore")
+    fp.seek(0)
+    fp.truncate(0)
+    fp.write(payload)
+    fp.flush()
 
 
 def _sanitize_mutex_fragment(name: str) -> str:
@@ -90,6 +107,14 @@ def try_acquire_single_instance_lock(support_subdir: str = "GhostWriter") -> boo
         except BlockingIOError:
             fp.close()
             return False
+
+        # Файл может оставаться после аварийного завершения; важен именно живой flock.
+        # После успешного захвата перезаписываем метаданные текущим PID.
+        try:
+            _write_unix_lock_metadata(fp, support_subdir)
+        except OSError:
+            LOGGER.debug("Не удалось записать метаданные lock-файла", exc_info=True)
+
         _lock_fp = fp
 
         def _release() -> None:
