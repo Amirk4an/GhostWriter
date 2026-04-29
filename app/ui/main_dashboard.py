@@ -87,6 +87,7 @@ class MainDashboard:
         root._gw_dashboard_mounted = True  # noqa: SLF001
 
         import customtkinter as ctk
+        from tkinter import filedialog
 
         from app.platform.audio_devices import list_audio_input_devices, validate_audio_input_index
         from app.ui.ctk_macos_theme import preferred_ui_font
@@ -772,9 +773,23 @@ class MainDashboard:
             anchor="w", padx=16
         )
         whisper_model_var = ctk.StringVar(value=cfg.whisper_model or "")
-        ctk.CTkEntry(stt_card, textvariable=whisper_model_var, font=body_font, height=32).pack(
-            fill="x", padx=16, pady=(4, 4)
+        _whisper_model_presets = ["tiny", "base", "small", "medium", "large-v3"]
+
+        def _whisper_model_values_for(current_value: str) -> list[str]:
+            values = list(_whisper_model_presets)
+            cur = (current_value or "").strip()
+            if cur and cur not in values:
+                values.insert(0, cur)
+            return values
+
+        whisper_model_combo = ctk.CTkComboBox(
+            stt_card,
+            values=_whisper_model_values_for(whisper_model_var.get()),
+            variable=whisper_model_var,
+            font=body_font,
+            height=32,
         )
+        whisper_model_combo.pack(fill="x", padx=16, pady=(4, 4))
         ctk.CTkLabel(
             stt_card,
             text=_WHISPER_MODEL_HINTS,
@@ -787,9 +802,26 @@ class MainDashboard:
             anchor="w", padx=16
         )
         vosk_model_path_var = ctk.StringVar(value=getattr(cfg, "vosk_model_path", "") or "")
-        ctk.CTkEntry(stt_card, textvariable=vosk_model_path_var, font=body_font, height=32).pack(
-            fill="x", padx=16, pady=(4, 4)
+        vosk_path_row = ctk.CTkFrame(stt_card, fg_color="transparent")
+        vosk_path_row.pack(fill="x", padx=16, pady=(4, 4))
+        ctk.CTkEntry(vosk_path_row, textvariable=vosk_model_path_var, font=body_font, height=32).pack(
+            side="left", fill="x", expand=True, padx=(0, 8)
         )
+
+        def on_browse_vosk_model_path() -> None:
+            selected_dir = filedialog.askdirectory(title="Выберите папку модели Vosk")
+            if selected_dir:
+                vosk_model_path_var.set(selected_dir)
+
+        ctk.CTkButton(
+            vosk_path_row,
+            text="Обзор...",
+            font=body_font,
+            width=96,
+            height=32,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            command=on_browse_vosk_model_path,
+        ).pack(side="right")
         ctk.CTkLabel(
             stt_card,
             text=(
@@ -875,6 +907,7 @@ class MainDashboard:
             wb = c.whisper_backend if c.whisper_backend in ALLOWED_WHISPER_BACKENDS else "local"
             whisper_var.set(wb)
             whisper_model_var.set(c.whisper_model or "")
+            whisper_model_combo.configure(values=_whisper_model_values_for(whisper_model_var.get()))
             vosk_model_path_var.set(getattr(c, "vosk_model_path", "") or "")
             li = "auto" if c.language is None else c.language
             if li not in ("ru", "en", "auto"):

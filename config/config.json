@@ -27,8 +27,8 @@
   "user_glossary_path": "user_glossary.json",
   "model_provider": "openai",
   "whisper_backend": "local",
-  "whisper_model": "whisper-1",
-  "local_whisper_model": "small",
+  "whisper_model": "medium",
+  "local_whisper_model": "medium",
   "stt_local": {
     "model_source": "cache",
     "custom_model_path": "",
