@@ -27,7 +27,7 @@
   "user_glossary_path": "user_glossary.json",
   "model_provider": "openai",
   "whisper_backend": "local",
-  "whisper_model": "medium",
+  "whisper_model": "small",
   "local_whisper_model": "medium",
   "stt_local": {
     "model_source": "cache",
@@ -36,12 +36,13 @@
     "compute_type": "int8"
   },
   "llm_model": "gpt-4o-mini",
-  "llm_enabled": true,
+  "llm_enabled": false,
   "sample_rate": 16000,
   "channels": 1,
   "chunk_size": 1024,
   "language": "ru",
   "max_parallel_jobs": 1,
   "audio_input_device": null,
-  "enable_history": true
+  "enable_history": true,
+  "vosk_model_path": ""
 }
