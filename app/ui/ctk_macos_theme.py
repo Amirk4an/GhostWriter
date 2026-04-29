@@ -1,4 +1,4 @@
-"""Общие настройки CustomTkinter: тёмная тема в духе macOS."""
+"""Общие настройки CustomTkinter: режим темы и шрифт в духе macOS."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import platform
 from typing import Any
 
 
-def apply_ctk_macos_dark_theme() -> None:
+def apply_ctk_theme(ui_theme: str = "dark") -> None:
     """
-    Включает тёмный режим и базовую палитру CTk.
+    Включает режим темы и базовую палитру CTk.
 
     На macOS вызывайте **после** первого ``ctk.CTk()`` (или эквивалентного корня Tk),
     иначе возможен ``Tcl_Panic`` в ``TkpInit`` при ``spawn``.
@@ -16,7 +16,10 @@ def apply_ctk_macos_dark_theme() -> None:
     """
     import customtkinter as ctk
 
-    ctk.set_appearance_mode("dark")
+    theme = (ui_theme or "dark").strip().lower()
+    if theme not in ("dark", "light", "system"):
+        theme = "dark"
+    ctk.set_appearance_mode(theme)
     ctk.set_default_color_theme("dark-blue")
 
 

@@ -1,5 +1,6 @@
 customtkinter
 faster-whisper
+vosk
 numpy
 openai
 litellm>=1.55.0

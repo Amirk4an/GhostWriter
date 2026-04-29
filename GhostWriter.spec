@@ -36,6 +36,11 @@ if _litellm and _litellm.submodule_search_locations:
 _models_dir = _SPEC_ROOT / "assets" / "models"
 if _models_dir.is_dir():
     _datas.append((str(_models_dir), "assets/models"))
+_icons_dir = _SPEC_ROOT / "assets" / "icons"
+if _icons_dir.is_dir():
+    _datas.append((str(_icons_dir), "assets/icons"))
+_app_icon = _SPEC_ROOT / "assets" / "icons" / "app_icon.icns"
+_app_icon_ico = _SPEC_ROOT / "assets" / "icons" / "app_icon.ico"
 
 a = Analysis(
     [str(_SPEC_ROOT / "main.py")],
@@ -68,6 +73,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=str(_app_icon_ico) if (_app_icon_ico.is_file() and sys.platform.startswith("win")) else None,
 )
 coll = COLLECT(
     exe,
@@ -84,7 +90,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="GhostWriter.app",
-        icon=None,
+        icon=str(_app_icon) if _app_icon.is_file() else None,
         bundle_identifier="com.ghostwriter.voiceflow",
         info_plist={
             "LSUIElement": True,

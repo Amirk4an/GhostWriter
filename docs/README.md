@@ -5,6 +5,7 @@
 | Документ | Содержание |
 |----------|------------|
 | [../README.md](../README.md) | Главная точка входа: обзор, быстрый старт, сборка, troubleshooting и ограничения платформ. |
+| [BUILD_CROSS_PLATFORM.md](BUILD_CROSS_PLATFORM.md) | Пошаговая инструкция корректной сборки на macOS, Windows и Linux + чеклист проверки артефактов. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Пайплайн диктовки и дневника, модули `app/core`, `app/providers`, `app/platform`, `app/ui`, процессы и очереди. |
 | [CONFIGURATION.md](CONFIGURATION.md) | Все ключи `config/config.json`, `stt_local`, секреты, переменные окружения, различия macOS / Windows / Linux. |
 | [../assets/models/README.md](../assets/models/README.md) | Офлайн-веса faster-whisper для режима `stt_local.model_source: bundle`. |

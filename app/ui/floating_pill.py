@@ -56,12 +56,12 @@ def _ctk_pill_main_loop(
     import customtkinter as ctk
 
     from app.platform.macos_ctk_dock import bring_app_to_front, hide_dock_icon_for_ctk_root
-    from app.ui.ctk_macos_theme import apply_ctk_macos_dark_theme, preferred_ui_font
+    from app.ui.ctk_macos_theme import apply_ctk_theme, preferred_ui_font
     from app.ui.pill_ipc import open_dashboard_message
 
     root = ctk.CTk()
     root.withdraw()
-    apply_ctk_macos_dark_theme()
+    apply_ctk_theme("dark")
     hide_dock_icon_for_ctk_root()
     try:
         root.attributes("-topmost", True)

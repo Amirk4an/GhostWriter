@@ -232,18 +232,18 @@ class TrayApplication:
             icon.stop()
 
     def _settings_window_loop(self) -> None:
-        """Окно настроек (CustomTkinter, тёмная тема macOS)."""
+        """Окно настроек (CustomTkinter)."""
         import customtkinter as ctk
 
-        from app.ui.ctk_macos_theme import apply_ctk_macos_dark_theme, preferred_ui_font
+        from app.ui.ctk_macos_theme import apply_ctk_theme, preferred_ui_font
 
         config = self._config_manager.config
 
         root = ctk.CTk()
         root.title("Preferences")
         root.geometry("560x400")
-        root.configure(fg_color=("#1C1C1E", "#1C1C1E"))
-        apply_ctk_macos_dark_theme()
+        root.configure(fg_color=("#F5F5F7", "#1C1C1E"))
+        apply_ctk_theme(config.ui_theme)
 
         title_font = preferred_ui_font(17, "bold", master=root)
         body_font = preferred_ui_font(12, master=root)
@@ -252,10 +252,10 @@ class TrayApplication:
         pad = 20
         outer = ctk.CTkFrame(
             root,
-            fg_color=("#2C2C2E", "#2C2C2E"),
+            fg_color=("#FFFFFF", "#2C2C2E"),
             corner_radius=14,
             border_width=1,
-            border_color=("#48484A", "#48484A"),
+            border_color=("#D1D1D6", "#48484A"),
         )
         outer.pack(fill="both", expand=True, padx=pad, pady=pad)
 
@@ -263,7 +263,7 @@ class TrayApplication:
             outer,
             text=f"{config.app_name}",
             font=title_font,
-            text_color=("#F2F2F7", "#F2F2F7"),
+            text_color=("#1C1C1E", "#F2F2F7"),
         )
         title.pack(anchor="w", padx=18, pady=(18, 4))
 
@@ -271,7 +271,7 @@ class TrayApplication:
             outer,
             text="Preferences",
             font=small_font,
-            text_color=("#8E8E93", "#8E8E93"),
+            text_color=("#6E6E73", "#8E8E93"),
         )
         subtitle.pack(anchor="w", padx=18, pady=(0, 12))
 
@@ -295,7 +295,7 @@ class TrayApplication:
             text=config_text,
             font=body_font,
             justify="left",
-            text_color=("#E5E5EA", "#E5E5EA"),
+            text_color=("#1C1C1E", "#E5E5EA"),
         )
         info.pack(anchor="nw", padx=4, pady=4)
 
@@ -308,8 +308,8 @@ class TrayApplication:
             font=body_font,
             height=34,
             corner_radius=10,
-            fg_color=("#3A3A3C", "#3A3A3C"),
-            hover_color=("#48484A", "#48484A"),
+            fg_color=("#E5E5EA", "#3A3A3C"),
+            hover_color=("#D1D1D6", "#48484A"),
             command=self._on_reload_config,
         )
         reload_button.pack(side="left", padx=(4, 8), pady=4)
@@ -331,7 +331,7 @@ class TrayApplication:
             ),
             font=small_font,
             justify="left",
-            text_color=("#AEAEB2", "#AEAEB2"),
+            text_color=("#6E6E73", "#AEAEB2"),
         )
         note.pack(anchor="w", padx=18, pady=(0, 16))
 

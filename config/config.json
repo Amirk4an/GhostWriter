@@ -6,6 +6,7 @@
   "journal_system_prompt": "Пользователь диктует мысль для личного дневника. Верни один JSON-объект с ключами: \"title\" (краткий заголовок), \"tags\" (массив из 2–3 коротких строк-тегов для сортировки), \"advice\" (короткий совет или инсайт по теме), \"refined_text\" (исправленная от опечаток оригинальная мысль, без добавления новых фактов). Только JSON, без markdown и пояснений.",
   "command_mode_hotkey": "",
   "floating_pill_enabled": true,
+  "ui_theme": "dark",
   "hands_free_enabled": true,
   "short_tap_max_ms": 220,
   "latch_arm_window_ms": 450,

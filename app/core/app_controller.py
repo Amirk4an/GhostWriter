@@ -21,6 +21,7 @@ from app.core.history_manager import HistoryManager
 from app.core.stats_manager import StatsManager, wav_audio_duration_seconds
 from app.platform.macos_focus import get_macos_frontmost_app_name
 from app.platform.output_controller import ClipboardOutputController
+from app.platform.selection_reader import get_focused_selected_text
 
 if TYPE_CHECKING:
     from app.ui.status_bridge import StatusBridge
@@ -152,8 +153,6 @@ class AppController:
 
     def on_command_hotkey_press(self) -> None:
         """Старт command mode: чтение выделения и запись команды."""
-        from app.platform.macos_ax_selection import get_focused_selected_text
-
         cfg = self._config_manager.config
         if not cfg.llm_enabled:
             LOGGER.warning("Command mode требует llm_enabled=true")

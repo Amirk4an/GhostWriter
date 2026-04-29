@@ -65,14 +65,14 @@ def run_dashboard_process(
     from tkinter import TclError
 
     from app.platform.macos_ctk_dock import bring_app_to_front, hide_dock_icon_for_ctk_root
-    from app.ui.ctk_macos_theme import apply_ctk_macos_dark_theme
+    from app.ui.ctk_macos_theme import apply_ctk_theme
 
     root = ctk.CTk()
-    apply_ctk_macos_dark_theme()
+    apply_ctk_theme(config_manager.config.ui_theme)
     hide_dock_icon_for_ctk_root()
     cfg = config_manager.config
     root.title(f"{cfg.app_name} — Dashboard")
-    root.configure(fg_color=("#1C1C1E", "#1C1C1E"))
+    root.configure(fg_color=("#F5F5F7", "#1C1C1E"))
     root.minsize(900, 600)
     root.geometry("1040x700")
 

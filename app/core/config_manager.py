@@ -30,8 +30,10 @@ DASHBOARD_PATCHABLE_KEYS = frozenset(
         "journal_system_prompt",
         "whisper_backend",
         "whisper_model",
+        "vosk_model_path",
         "language",
         "floating_pill_enabled",
+        "ui_theme",
     }
 )
 
@@ -57,6 +59,7 @@ class AppConfig:
     max_parallel_jobs: int
     audio_input_device: int | None = None
     floating_pill_enabled: bool = True
+    ui_theme: str = "dark"
     command_mode_hotkey: str = ""
     app_context_prompts: dict[str, str] = field(default_factory=dict)
     user_glossary_path: str = "user_glossary.json"
@@ -75,6 +78,7 @@ class AppConfig:
     local_whisper_custom_path: str = ""
     local_whisper_device: str = "cpu"
     local_whisper_compute_type: str = "int8"
+    vosk_model_path: str = ""
     enable_history: bool = True
     journal_hotkey: str = ""
     journal_system_prompt: str = (
@@ -184,6 +188,8 @@ class ConfigManager:
                         raw["language"] = str(val).strip()
                 elif key in ("llm_enabled", "floating_pill_enabled"):
                     raw[key] = bool(val)
+                elif key == "ui_theme":
+                    raw[key] = str(val or "dark").strip().lower()
                 elif key in ("system_prompt", "journal_system_prompt", "llm_model"):
                     raw[key] = str(val)
                 elif key in ("hotkey", "journal_hotkey", "command_mode_hotkey"):
@@ -193,6 +199,8 @@ class ConfigManager:
                 elif key == "model_provider":
                     raw[key] = str(val or "").strip().lower()
                 elif key == "whisper_model":
+                    raw[key] = str(val or "").strip()
+                elif key == "vosk_model_path":
                     raw[key] = str(val or "").strip()
                 else:
                     raw[key] = val
@@ -213,6 +221,7 @@ class ConfigManager:
             raw["system_prompt"] = cfg.system_prompt
             raw["journal_system_prompt"] = cfg.journal_system_prompt
             raw["floating_pill_enabled"] = cfg.floating_pill_enabled
+            raw["ui_theme"] = cfg.ui_theme
             self._write_json(raw)
             self._config = cfg
             return cfg
@@ -423,6 +432,16 @@ class ConfigManager:
                 f"whisper_backend: ожидается один из {sorted(ALLOWED_WHISPER_BACKENDS)}, "
                 f"получено {whisper_backend!r}"
             )
+        whisper_model = str(raw["whisper_model"] or "").strip()
+        if whisper_backend == "gcp_speech" and not whisper_model:
+            whisper_model = "latest_long"
+        if whisper_backend == "yandex_speech" and not whisper_model:
+            whisper_model = "general"
+        if whisper_backend == "vosk" and not whisper_model:
+            whisper_model = "vosk-model-small-ru-0.22"
+        ui_theme = str(raw.get("ui_theme", "dark") or "dark").strip().lower()
+        if ui_theme not in ("dark", "light", "system"):
+            ui_theme = "dark"
 
         return AppConfig(
             app_name=str(raw["app_name"]),
@@ -431,7 +450,7 @@ class ConfigManager:
             system_prompt=str(raw["system_prompt"]),
             model_provider=model_provider,
             whisper_backend=whisper_backend,
-            whisper_model=str(raw["whisper_model"]),
+            whisper_model=whisper_model,
             local_whisper_model=str(raw["local_whisper_model"]),
             llm_model=str(raw["llm_model"]),
             llm_enabled=bool(raw["llm_enabled"]),
@@ -442,6 +461,7 @@ class ConfigManager:
             max_parallel_jobs=max(1, int(raw["max_parallel_jobs"])),
             audio_input_device=audio_input_device,
             floating_pill_enabled=bool(raw.get("floating_pill_enabled", True)),
+            ui_theme=ui_theme,
             command_mode_hotkey=str(raw.get("command_mode_hotkey", "") or "").lower().replace(" ", ""),
             app_context_prompts=context_prompts,
             user_glossary_path=str(raw.get("user_glossary_path", "user_glossary.json")),
@@ -461,6 +481,7 @@ class ConfigManager:
             local_whisper_custom_path=lw_custom,
             local_whisper_device=lw_device,
             local_whisper_compute_type=lw_compute,
+            vosk_model_path=str(raw.get("vosk_model_path", "") or "").strip(),
             enable_history=bool(raw.get("enable_history", True)),
             journal_hotkey=journal_hotkey_effective,
             journal_system_prompt=str(

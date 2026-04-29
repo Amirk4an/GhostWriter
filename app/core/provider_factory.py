@@ -31,6 +31,24 @@ class ProviderFactory:
             return DeepgramTranscriptionProvider(
                 config_manager=self._config_manager, model_name=config.whisper_model
             )
+        if config.whisper_backend == "gcp_speech":
+            from app.providers.google_speech_transcription_provider import GoogleSpeechTranscriptionProvider
+
+            return GoogleSpeechTranscriptionProvider(
+                config_manager=self._config_manager,
+                model_name=config.whisper_model,
+            )
+        if config.whisper_backend == "yandex_speech":
+            from app.providers.yandex_speech_transcription_provider import YandexSpeechTranscriptionProvider
+
+            return YandexSpeechTranscriptionProvider(
+                config_manager=self._config_manager,
+                model_name=config.whisper_model,
+            )
+        if config.whisper_backend == "vosk":
+            from app.providers.vosk_transcription_provider import VoskTranscriptionProvider
+
+            return VoskTranscriptionProvider(app_config=config)
         raise RuntimeError(f"Неподдерживаемый whisper_backend: {config.whisper_backend}")
 
     def create_llm_provider(self, config: AppConfig) -> LLMProvider | None:

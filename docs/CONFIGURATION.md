@@ -15,8 +15,8 @@
 | `hotkey` | Хоткей диктовки (например `f8`); нормализация: нижний регистр, без пробелов. |
 | `system_prompt` | Базовый промпт LLM-постобработки. |
 | `model_provider` | `openai` — нативный OpenAI SDK; иначе LLM через **LiteLLM** (`groq`, `anthropic`, `gemini`, `google`, `openrouter`, `ollama`, `mistral`, `cohere` — нижний регистр). |
-| `whisper_backend` | `local` (faster-whisper), `openai`, `groq`, `deepgram`. |
-| `whisper_model` | Имя модели API: `whisper-1` (OpenAI), `whisper-large-v3-turbo` (Groq), `nova-2` (Deepgram) и т.д. |
+| `whisper_backend` | `local` (faster-whisper), `vosk` (локальный Vosk), `openai`, `groq`, `deepgram`, `gcp_speech`, `yandex_speech`. |
+| `whisper_model` | Имя модели API: `whisper-1` (OpenAI), `whisper-large-v3-turbo` (Groq), `nova-2` (Deepgram), `latest_long`/`latest_short` (Google STT), `general`/`maps` (Yandex SpeechKit topic). Для `vosk` используется как имя каталога в `assets/models/<whisper_model>`, если `vosk_model_path` не задан. Дефолты: `gcp_speech` → `latest_long`, `yandex_speech` → `general`, `vosk` → `vosk-model-small-ru-0.22`. |
 | `local_whisper_model` | Имя модели/каталога для faster-whisper. |
 | `llm_model` | Для `openai` — имя модели чата (например `gpt-4o-mini`). Для LiteLLM — короткое имя модели **без** префикса провайдера (например `llama-3.1-8b-instant` для `groq`) или полный идентификатор с `/` (например `openai/gpt-4o-mini` для OpenRouter). Внутри `LiteLLMLLMProvider` короткое имя преобразуется в `<provider>/<model>`, при `model_provider=google` используется префикс `gemini`. |
 | `llm_enabled` | `true` / `false` — включать ли постобработку LLM. |
@@ -44,6 +44,7 @@
 |------|-------------------------|
 | `audio_input_device` | `null` — устройство по умолчанию PortAudio; иначе целый индекс. При смене в дашборде основной процесс подхватывает устройство после `Reload configuration` в меню трея (или после перезапуска приложения). |
 | `floating_pill_enabled` | `true` |
+| `ui_theme` | `dark` — тема интерфейса `dark` / `light` / `system` для окон на CustomTkinter. |
 | `command_mode_hotkey` | `""` — command mode выключен, если пусто. |
 | `journal_hotkey` | `""` — отдельный хоткей дневника выключен. Формат как у `hotkey` / `command_mode_hotkey`. Некорректная строка приводит к отключению с предупреждением в логе. |
 | `journal_system_prompt` | Дефолт: `Пользователь диктует мысль для личного дневника. Верни один JSON-объект с ключами: "title" (краткий заголовок), "tags" (массив из 2–3 коротких строк-тегов для сортировки), "advice" (короткий совет или инсайт по теме), "refined_text" (исправленная от опечаток оригинальная мысль, без добавления новых фактов). Только JSON, без markdown и пояснений.` |
@@ -56,6 +57,7 @@
 | `latch_stop_double_down_ms` | `450`, минимум `100` |
 | `streaming_stt_enabled` | `false` |
 | `whisper_mode_boost_input` | `false` |
+| `vosk_model_path` | `""` — явный путь к локальной модели Vosk; если пусто, используется `assets/models/<whisper_model>`. |
 | `language` | Если ключа нет — **`ru`**. `null`, `""`, `auto`, `detect`, `multi` → автоопределение (`None` для STT). |
 | `enable_history` | `true` |
 
@@ -77,7 +79,12 @@
 
 ### Command mode (редактирование выделения по голосу)
 
-Чтение выделения — **только macOS** (`macos_ax_selection.py`). На Windows и Linux command mode **недоступен**, пока не реализованы нативные аналоги.
+Чтение выделения:
+
+- **macOS** — через Accessibility (`macos_ax_selection.py`);
+- **Windows** — через безопасный clipboard-flow: `Ctrl+C` + чтение `pyperclip` + восстановление исходного буфера (или очистка, если исходный буфер был нетекстовым и восстановление недоступно).
+
+На Linux command mode пока недоступен, пока не реализован нативный аналог чтения выделения.
 
 План по кроссплатформенности и этапы Windows-реализации описаны в [`../README.md`](../README.md) в разделе `Known Limitations / Roadmap`.
 
@@ -131,6 +138,7 @@
   "hotkey": "f8",
   "command_mode_hotkey": "",
   "floating_pill_enabled": true,
+  "ui_theme": "dark",
   "hands_free_enabled": true,
   "short_tap_max_ms": 220,
   "latch_arm_window_ms": 450,
@@ -193,6 +201,10 @@
 | STT | `whisper_backend` = `openai` | `OPENAI_API_KEY` |
 | STT | `groq` | `GROQ_API_KEY` |
 | STT | `deepgram` | `DEEPGRAM_API_KEY` |
+| STT | `gcp_speech` | `GCP_STT_API_KEY` |
+| STT | `yandex_speech` | `YANDEX_API_KEY` |
+| STT (доп.) | `yandex_speech` | `YANDEX_FOLDER_ID` (опционально, но рекомендуется) |
+| STT | `vosk` | — |
 | STT | `local` | — |
 
 После сохранения настроек в дашборде основной процесс получает **`RELOAD_CONFIG`**: конфиг и **провайдеры STT/LLM пересоздаются** без полного перезапуска приложения.
@@ -202,7 +214,7 @@
 В дашборде используется `app/core/api_selftest.py`:
 
 - LLM: минимальный вызов к текущему провайдеру (`OpenAI` напрямую или `LiteLLM`).
-- STT: проверка ключа через легковесные endpoint'ы (`/models` для OpenAI/Groq, `/v1/projects` для Deepgram).
+- STT: проверка ключа через легковесные endpoint'ы (`/models` для OpenAI/Groq, `/v1/projects` для Deepgram, `speech:recognize` с коротким синтетическим WAV для Google STT, `stt:recognize` с синтетическим PCM16 для Yandex SpeechKit); для `vosk` — локальная проверка структуры каталога модели (без сети).
 
 Эти проверки не требуют записи аудио и нужны для быстрой диагностики секретов/доступности API.
 

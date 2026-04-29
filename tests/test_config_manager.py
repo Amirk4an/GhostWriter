@@ -209,6 +209,39 @@ def test_update_and_save_model_provider_and_whisper_model(tmp_path: Path) -> Non
     assert manager.config.whisper_model == "nova-2"
 
 
+def test_gcp_whisper_model_defaults_to_latest_long_when_empty(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["whisper_backend"] = "gcp_speech"
+    base["whisper_model"] = ""
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    manager = ConfigManager(config_file)
+    assert manager.config.whisper_backend == "gcp_speech"
+    assert manager.config.whisper_model == "latest_long"
+
+
+def test_yandex_whisper_model_defaults_to_general_when_empty(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["whisper_backend"] = "yandex_speech"
+    base["whisper_model"] = ""
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    manager = ConfigManager(config_file)
+    assert manager.config.whisper_backend == "yandex_speech"
+    assert manager.config.whisper_model == "general"
+
+
+def test_vosk_whisper_model_defaults_when_empty(tmp_path: Path) -> None:
+    base = _minimal_config_dict()
+    base["whisper_backend"] = "vosk"
+    base["whisper_model"] = ""
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(base), encoding="utf-8")
+    manager = ConfigManager(config_file)
+    assert manager.config.whisper_backend == "vosk"
+    assert manager.config.whisper_model == "vosk-model-small-ru-0.22"
+
+
 def test_secret_user_file_over_env(tmp_path: Path, secrets_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ConfigManager, "_local_dotenv_candidates", lambda self: [])
     secrets_path.write_text("OPENAI_API_KEY=from-user-file\n", encoding="utf-8")

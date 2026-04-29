@@ -52,7 +52,9 @@ _LLM_MODEL_PRESETS: dict[str, list[str]] = {
 }
 
 _WHISPER_MODEL_HINTS = (
-    "local: не используется для API. openai: whisper-1. groq: whisper-large-v3-turbo. deepgram: nova-2."
+    "local: не используется для API. vosk: каталог модели (по умолчанию vosk-model-small-ru-0.22). "
+    "openai: whisper-1. groq: whisper-large-v3-turbo. deepgram: nova-2. gcp_speech: latest_long/latest_short. "
+    "yandex_speech: general/maps."
 )
 
 
@@ -102,7 +104,7 @@ class MainDashboard:
 
         sidebar = ctk.CTkFrame(
             root,
-            fg_color=("#2C2C2E", "#2C2C2E"),
+            fg_color=("#FFFFFF", "#2C2C2E"),
             corner_radius=0,
             width=220,
         )
@@ -113,11 +115,11 @@ class MainDashboard:
             sidebar,
             text=cfg.app_name,
             font=title_font,
-            text_color=("#F2F2F7", "#F2F2F7"),
+            text_color=("#1C1C1E", "#F2F2F7"),
         )
         brand.pack(anchor="w", padx=18, pady=(24, 8))
 
-        main_area = ctk.CTkFrame(root, fg_color=("#1C1C1E", "#1C1C1E"), corner_radius=0)
+        main_area = ctk.CTkFrame(root, fg_color=("#F5F5F7", "#1C1C1E"), corner_radius=0)
         main_area.grid(row=0, column=1, sticky="nsew")
         main_area.grid_columnconfigure(0, weight=1)
         main_area.grid_rowconfigure(0, weight=1)
@@ -781,6 +783,24 @@ class MainDashboard:
             wraplength=900,
             justify="left",
         ).pack(anchor="w", padx=16, pady=(0, 10))
+        ctk.CTkLabel(stt_card, text="Путь к модели Vosk (vosk_model_path)", font=small_font, text_color="#AEAEB2").pack(
+            anchor="w", padx=16
+        )
+        vosk_model_path_var = ctk.StringVar(value=getattr(cfg, "vosk_model_path", "") or "")
+        ctk.CTkEntry(stt_card, textvariable=vosk_model_path_var, font=body_font, height=32).pack(
+            fill="x", padx=16, pady=(4, 4)
+        )
+        ctk.CTkLabel(
+            stt_card,
+            text=(
+                "Необязательный абсолютный/относительный путь к каталогу Vosk. "
+                "Если поле пустое, используется assets/models/<whisper_model>."
+            ),
+            font=small_font,
+            text_color="#8E8E93",
+            wraplength=900,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 10))
         ctk.CTkLabel(stt_card, text="Язык (language)", font=small_font, text_color="#AEAEB2").pack(anchor="w", padx=16)
         _lang_init = "auto" if cfg.language is None else cfg.language
         if _lang_init not in ("ru", "en", "auto"):
@@ -797,6 +817,19 @@ class MainDashboard:
         ).pack(anchor="w", padx=16, pady=(4, 12))
 
         ui_card = _settings_section_card(4, "Внешний вид")
+        ctk.CTkLabel(ui_card, text="Тема интерфейса (ui_theme)", font=small_font, text_color="#AEAEB2").pack(
+            anchor="w", padx=16
+        )
+        ui_theme_var = ctk.StringVar(value=(getattr(cfg, "ui_theme", "dark") or "dark"))
+        ctk.CTkOptionMenu(
+            ui_card,
+            values=["dark", "light", "system"],
+            variable=ui_theme_var,
+            font=body_font,
+            width=200,
+            fg_color=("#3A3A3C", "#3A3A3C"),
+            button_color=("#48484A", "#48484A"),
+        ).pack(anchor="w", padx=16, pady=(4, 10))
         pill_sw = ctk.CTkSwitch(
             ui_card,
             text="Плавающий индикатор (floating_pill_enabled)",
@@ -810,7 +843,7 @@ class MainDashboard:
         pill_sw.pack(anchor="w", padx=16, pady=(0, 12))
         ctk.CTkLabel(
             ui_card,
-            text="Смена pill вступит в силу после перезапуска приложения.",
+            text="Смена темы и pill вступит в силу после перезапуска UI-окон (дашборд/preferences).",
             font=small_font,
             text_color="#8E8E93",
             wraplength=900,
@@ -842,6 +875,7 @@ class MainDashboard:
             wb = c.whisper_backend if c.whisper_backend in ALLOWED_WHISPER_BACKENDS else "local"
             whisper_var.set(wb)
             whisper_model_var.set(c.whisper_model or "")
+            vosk_model_path_var.set(getattr(c, "vosk_model_path", "") or "")
             li = "auto" if c.language is None else c.language
             if li not in ("ru", "en", "auto"):
                 li = "ru"
@@ -850,6 +884,7 @@ class MainDashboard:
                 pill_sw.select()
             else:
                 pill_sw.deselect()
+            ui_theme_var.set(getattr(c, "ui_theme", "dark") or "dark")
 
         save_row = ctk.CTkFrame(settings, fg_color="transparent")
         save_row.grid(row=9, column=0, sticky="ew", pady=(4, 4))
@@ -869,8 +904,10 @@ class MainDashboard:
                     "journal_system_prompt": journal_prompt_box.get("1.0", "end").strip(),
                     "whisper_backend": whisper_var.get().strip().lower(),
                     "whisper_model": whisper_model_var.get().strip(),
+                    "vosk_model_path": vosk_model_path_var.get().strip(),
                     "language": lang_v,
                     "floating_pill_enabled": bool(pill_sw.get()),
+                    "ui_theme": ui_theme_var.get().strip().lower(),
                 }
                 config_manager.update_and_save(updates)
                 sync_settings_widgets()

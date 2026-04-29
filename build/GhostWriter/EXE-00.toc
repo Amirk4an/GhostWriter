@@ -57,7 +57,7 @@
  [],
  False,
  False,
- 1777382104,
+ 1777459575,
  [('runw',
    '/Users/krasikov/projects/ghostwriter/.venv/lib/python3.12/site-packages/PyInstaller/bootloader/Darwin-64bit/runw',
    'EXECUTABLE')],

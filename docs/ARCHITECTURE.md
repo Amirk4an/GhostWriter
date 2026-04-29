@@ -63,7 +63,9 @@
 | `gui_availability.py` | `GHOSTWRITER_HEADLESS`, предупреждения про окружение. |
 | `audio_devices.py` | Список устройств PortAudio. |
 | `macos_*.py` | Фокус, AX selection, accessibility-подсказки. |
+| `selection_reader.py` | Кроссплатформенный выбор механизма чтения выделенного текста для command mode. |
 | `windows/focus.py` | Восстановление HWND переднего окна перед Ctrl+V. |
+| `windows/selection_reader.py` | Чтение выделения на Windows через Ctrl+C с безопасным восстановлением текстового буфера. |
 | `windows/ctk_window_policy.py` | Поведение окна дашборда (toolwindow и т.п.). |
 
 ## Компоненты `app/ui`
