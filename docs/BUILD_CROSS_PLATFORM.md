@@ -114,6 +114,8 @@ pyinstaller GhostWriter.spec --clean
 - горячая клавиша диктовки работает;
 - вставка `Ctrl+V` в целевое приложение выполняется корректно.
 
+Чтобы собрать **один файл установщика** (`Output\GhostWriter_Setup.exe`), используйте [Inno Setup](https://jrsoftware.org/isinfo.php) и скрипт в корне репозитория `GhostWriter_installer.iss` (подробности в [README.md](../README.md#установщик-windows-inno-setup)).
+
 ### Linux
 
 Запуск бинарника из `dist/GhostWriter/` и базовая проверка:

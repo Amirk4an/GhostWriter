@@ -146,6 +146,16 @@ pyinstaller GhostWriter.spec --clean
 
 Офлайн-веса: **`stt_local`** в конфиге и **`assets/models/`** — при наличии папки она попадает в `datas`. Подробнее: [assets/models/README.md](assets/models/README.md).
 
+#### Установщик Windows (Inno Setup)
+
+После успешной сборки PyInstaller можно собрать классический мастер установки:
+
+1. Установите [Inno Setup](https://jrsoftware.org/isinfo.php) на машине со Windows.
+2. Убедитесь, что существует каталог `dist\GhostWriter\` (результат `pyinstaller GhostWriter.spec --clean`).
+3. Откройте в **Inno Setup Compiler** файл репозитория [`GhostWriter_installer.iss`](GhostWriter_installer.iss) и выполните **Build → Compile** (или Ctrl+F9).
+
+Готовый установщик появится в `Output\GhostWriter_Setup.exe`. В скрипте заданы `#define` (имя приложения, версия, имя `exe`): для white-label их нужно согласовать с `config/config.json` (`app_name`) и с именами в [`GhostWriter.spec`](GhostWriter.spec).
+
 ### Один экземпляр
 
 - **macOS / Linux:** неблокирующий `flock` на `single_instance.lock` в `default_app_support_dir`.
