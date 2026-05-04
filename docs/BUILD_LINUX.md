@@ -36,7 +36,7 @@ python3 main.py
 pyinstaller GhostWriter.spec --clean
 ```
 
-**Результат:** каталог **`dist/GhostWriter/`** с бинарником внутри (onedir).
+**Результат:** каталог `**dist/GhostWriter/`** с бинарником внутри (onedir).
 
 ## 4) Проверка артефакта
 
@@ -50,3 +50,4 @@ pyinstaller GhostWriter.spec --clean
 
 - Убедитесь, что установлен и активен стек аудио (**PulseAudio** / **PipeWire** + **PortAudio**).
 - Проверьте права текущего пользователя на доступ к аудиоустройствам.
+
