@@ -4,7 +4,25 @@
 
 Запуск из консоли: `python3 main.py` (на macOS команды `python` часто нет в `PATH`). В трее — статус и меню; опционально плавающий индикатор (pill) и отдельный **Dashboard** (история, статистика, ключ API).
 
-**Документация:** этот `README.md` — основная точка входа (обзор, запуск, сборка, troubleshooting). Технические детали: [docs/README.md](docs/README.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/CONFIGURATION.md](docs/CONFIGURATION.md) · сборка: [docs/BUILD_CROSS_PLATFORM.md](docs/BUILD_CROSS_PLATFORM.md) ([macOS](docs/BUILD_macOS.md) · [Windows](docs/BUILD_WINDOWS.md) · [Linux](docs/BUILD_LINUX.md)) · [assets/models/README.md](assets/models/README.md)
+**Документация:** этот `README.md` — основная точка входа (обзор, запуск, сборка, troubleshooting). Установка готового бинарника одной командой — [docs/INSTALL.md](docs/INSTALL.md). Технические детали: [docs/README.md](docs/README.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/CONFIGURATION.md](docs/CONFIGURATION.md) · сборка: [docs/BUILD_CROSS_PLATFORM.md](docs/BUILD_CROSS_PLATFORM.md) ([macOS](docs/BUILD_macOS.md) · [Windows](docs/BUILD_WINDOWS.md) · [Linux](docs/BUILD_LINUX.md)) · [assets/models/README.md](assets/models/README.md)
+
+## Быстрая установка (one-liner)
+
+Конечному пользователю **не нужен Python** — скрипт скачивает готовый бинарник из последнего GitHub Release и раскладывает его по системе.
+
+**macOS / Linux** (терминал):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Amirk4an/GhostWriter/main/install.sh | bash
+```
+
+**Windows** (PowerShell):
+
+```powershell
+iex (irm https://raw.githubusercontent.com/Amirk4an/GhostWriter/main/install.ps1)
+```
+
+Подробности (что куда устанавливается, удаление, обновление, troubleshooting) — в [docs/INSTALL.md](docs/INSTALL.md). Если хотите собрать из исходников — раздел «Быстрый старт» ниже.
 
 ## Требования
 

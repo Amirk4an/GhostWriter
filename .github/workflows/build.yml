@@ -1,9 +1,13 @@
-name: Build GhostWriter
+name: Build & Release GhostWriter
 
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -12,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
 
     steps:
       - name: Checkout repository
@@ -24,19 +28,84 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install dependencies
+      # Системные зависимости Linux (PortAudio для sounddevice, XCB-курсоры для Tk-окружений).
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends portaudio19-dev libxcb-cursor0
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # На Windows .spec ожидает assets/icons/app_icon.ico, а в репозитории лежит только PNG.
+      # Генерируем .ico из PNG через Pillow до запуска PyInstaller.
+      - name: Generate Windows .ico from PNG
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -c "from PIL import Image; img = Image.open('assets/icons/app_icon.png').convert('RGBA'); img.save('assets/icons/app_icon.ico', format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
       - name: Build with PyInstaller
         run: python -m PyInstaller GhostWriter.spec --clean --noconfirm
 
-      - name: Upload artifact
-        continue-on-error: true
+      # macOS: ditto сохраняет атрибуты bundle и code-signing (если есть) лучше, чем zip.
+      - name: Package macOS artifact (.app -> ditto zip)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          ditto -c -k --keepParent GhostWriter.app ../GhostWriter-macOS.zip
+          ls -la ../GhostWriter-macOS.zip
+
+      - name: Install Inno Setup (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows installer (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\iscc.exe" GhostWriter_installer.iss
+          if (-not (Test-Path "Output\GhostWriter_Setup.exe")) { throw "Inno Setup output not found" }
+          Move-Item "Output\GhostWriter_Setup.exe" "GhostWriter-Windows-Setup.exe" -Force
+          Get-Item "GhostWriter-Windows-Setup.exe" | Format-List Name, Length
+
+      - name: Package Linux artifact (onedir -> tar.gz)
+        if: runner.os == 'Linux'
+        run: |
+          tar -C dist -czf GhostWriter-Linux.tar.gz GhostWriter
+          ls -la GhostWriter-Linux.tar.gz
+
+      - name: Determine artifact filename
+        id: artifact
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            macOS)   echo "name=GhostWriter-macOS.zip"        >> "$GITHUB_OUTPUT" ;;
+            Windows) echo "name=GhostWriter-Windows-Setup.exe" >> "$GITHUB_OUTPUT" ;;
+            Linux)   echo "name=GhostWriter-Linux.tar.gz"      >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: GhostWriter-${{ runner.os }}
-          path: dist/
-          retention-days: 1
-          compression-level: 9
+          path: ${{ steps.artifact.outputs.name }}
+          retention-days: 7
+          compression-level: 0
+
+      # Публикация в Release срабатывает только при push тега вида v*.
+      # softprops/action-gh-release идемпотентен по tag_name: три джобы (по одной на ОС)
+      # дописывают свои файлы в один и тот же релиз.
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.artifact.outputs.name }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          draft: false
+          prerelease: false
