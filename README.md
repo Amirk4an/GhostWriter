@@ -22,6 +22,8 @@ curl -sSL https://raw.githubusercontent.com/Amirk4an/GhostWriter/main/install.sh
 iex (irm https://raw.githubusercontent.com/Amirk4an/GhostWriter/main/install.ps1)
 ```
 
+Если репозиторий **приватный**, прямой `curl`/`irm` на `raw.githubusercontent.com` вернёт **404**, и `bash` может показать `404:: command not found` — в pipe попал текст ошибки, а не скрипт. Тогда используйте токен и команды из раздела **«Приватный репозиторий»** в [docs/INSTALL.md](docs/INSTALL.md).
+
 Подробности (что куда устанавливается, удаление, обновление, troubleshooting) — в [docs/INSTALL.md](docs/INSTALL.md). Если хотите собрать из исходников — раздел «Быстрый старт» ниже.
 
 ## Требования

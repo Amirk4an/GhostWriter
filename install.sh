@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # Ghost Writer — установка одной командой для macOS и Linux.
 #
-# Использование:
+# Использование (публичный репозиторий):
 #   curl -sSL https://raw.githubusercontent.com/Amirk4an/GhostWriter/main/install.sh | bash
+#
+# Приватный репозиторий — сначала получите скрипт с токеном (scope: repo / Contents: Read), затем:
+#   export GITHUB_TOKEN=...   # или: export GITHUB_TOKEN="$(gh auth token)"
+#   curl -sSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
+#     "https://api.github.com/repos/Amirk4an/GhostWriter/contents/install.sh?ref=main" | bash
+# Токен нужен и для скачивания артефактов релиза (тот же export).
 #
 # Скрипт:
 #   - определяет ОС;
@@ -55,13 +61,52 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "Не найдена команда '$1'. Установите её и повторите."
 }
 
-# --- Скачивание с прогрессом ---
-download() {
-    local url="$1"
+# --- Скачивание артефакта последнего релиза (публичный URL или GitHub API при GITHUB_TOKEN / GH_TOKEN) ---
+require_cmd python3
+
+download_release_asset() {
+    local asset_name="$1"
     local output="$2"
+    local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+    local api_latest="https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/releases/latest"
+
+    if [ -n "${token}" ]; then
+        info "Скачивание «${asset_name}» через GitHub API (есть GITHUB_TOKEN или GH_TOKEN)…"
+        local json asset_id
+        if ! json="$(curl -sS -fL --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer ${token}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${api_latest}")"; then
+            die "Не удалось запросить ${api_latest}. Проверьте токен (нужен доступ к репозиторию) и наличие релиза."
+        fi
+        asset_id="$(python3 -c "
+import json, sys
+name = sys.argv[1]
+data = json.loads(sys.stdin.read())
+for a in data.get('assets', []):
+    if a.get('name') == name:
+        print(a['id'])
+        sys.exit(0)
+sys.exit(1)
+" "${asset_name}" <<< "${json}")" || die "В последнем релизе нет файла «${asset_name}». Соберите релиз в CI и прикрепите артефакты."
+
+        if ! curl -fL --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer ${token}" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o "${output}" \
+            "https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/releases/assets/${asset_id}"; then
+            die "Не удалось скачать asset id=${asset_id}. Проверьте права токена (нужно чтение Contents / Releases)."
+        fi
+        return 0
+    fi
+
+    local url="${RELEASE_BASE_URL}/${asset_name}"
     info "Скачивание: ${url}"
     if ! curl -fL --retry 3 --retry-delay 2 -o "${output}" "${url}"; then
-        die "Не удалось скачать ${url}. Проверьте интернет-соединение и наличие релиза в GitHub."
+        err "Прямая ссылка не сработала (часто так бывает у приватного репозитория)."
+        die "Сделайте репозиторий публичным ИЛИ выполните: export GITHUB_TOKEN=\"\$(gh auth token)\" (PAT с доступом к repo) и запустите скрипт снова. См. docs/INSTALL.md — раздел «Приватный репозиторий»."
     fi
 }
 
@@ -73,7 +118,7 @@ install_macos() {
     require_cmd unzip
 
     local zip_path="${TMP_DIR}/${ASSET_MACOS}"
-    download "${RELEASE_BASE_URL}/${ASSET_MACOS}" "${zip_path}"
+    download_release_asset "${ASSET_MACOS}" "${zip_path}"
 
     # Выбор каталога установки: /Applications (системный) или ~/Applications (пользовательский).
     local install_dir="/Applications"
@@ -124,7 +169,7 @@ install_linux() {
     require_cmd tar
 
     local tar_path="${TMP_DIR}/${ASSET_LINUX}"
-    download "${RELEASE_BASE_URL}/${ASSET_LINUX}" "${tar_path}"
+    download_release_asset "${ASSET_LINUX}" "${tar_path}"
 
     local share_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/${APP_NAME}"
     local bin_dir="${HOME}/.local/bin"

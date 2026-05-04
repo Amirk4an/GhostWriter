@@ -8,6 +8,38 @@
 - Минимум 500 МБ свободного места на диске.
 - **macOS 12+**, **Windows 10/11**, **Linux** (любой современный с PulseAudio/PipeWire).
 
+## Приватный репозиторий GitHub
+
+Если репозиторий **не публичный**, ссылки `raw.githubusercontent.com` и `releases/latest/download/...` для анонимного `curl` возвращают **404**. В терминале это часто выглядит как `bash: line 1: 404:: command not found` — в `bash` попадает текст ответа «Not Found», а не сам скрипт.
+
+**Не выполняйте** `curl ... | bash`, пока не убедитесь, что первые строки ответа — это код shell (начинается с `#!/` или `#`).
+
+**Вариант A — сделать репозиторий public** (тогда команды ниже по разделам macOS/Linux/Windows работают как в инструкции).
+
+**Вариант B — оставить private и использовать токен** (Classic PAT: scope `repo`, или Fine-grained: **Contents** и **Metadata** на репозиторий; для `gh auth token` обычно достаточно уже залогиненного `gh`).
+
+### macOS / Linux (приватный репо)
+
+```bash
+export GITHUB_TOKEN="$(gh auth token)"   # или вставьте свой PAT
+curl -sSL \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github.raw" \
+  "https://api.github.com/repos/Amirk4an/GhostWriter/contents/install.sh?ref=main" | bash
+```
+
+Скрипт установки сам подхватит `GITHUB_TOKEN` (или `GH_TOKEN`) и скачает zip/tar.gz релиза через **GitHub API**.
+
+### Windows (приватный репо)
+
+```powershell
+$env:GITHUB_TOKEN = gh auth token   # или ваш PAT
+iex (irm -Headers @{
+    Authorization = "Bearer $($env:GITHUB_TOKEN)"
+    Accept          = 'application/vnd.github.raw'
+} "https://api.github.com/repos/Amirk4an/GhostWriter/contents/install.ps1?ref=main")
+```
+
 ## macOS
 
 ```bash

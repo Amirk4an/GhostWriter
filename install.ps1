@@ -9,6 +9,10 @@
 .EXAMPLE
     iex (irm https://raw.githubusercontent.com/Amirk4an/GhostWriter/main/install.ps1)
 
+    # Приватный репозиторий (нужен PAT с доступом к repo):
+    #   $env:GITHUB_TOKEN = gh auth token   # или вставьте PAT
+    #   iex (irm -Headers @{ Authorization = "Bearer $($env:GITHUB_TOKEN)"; Accept = "application/vnd.github.raw" } "https://api.github.com/repos/Amirk4an/GhostWriter/contents/install.ps1?ref=main")
+
 .NOTES
     Требования:
       - Windows 10 / 11
@@ -56,13 +60,43 @@ if (Test-Path $InstallerPath) {
     Remove-Item $InstallerPath -Force
 }
 
-Write-Info "Скачивание: $DownloadUrl"
-try {
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $InstallerPath -UseBasicParsing
-} catch {
-    Write-Err "Не удалось скачать установщик: $($_.Exception.Message)"
-    Write-Err "Проверьте доступность https://github.com/$GhOwner/$GhRepo/releases/latest"
-    exit 1
+$ghToken = $env:GITHUB_TOKEN
+if (-not $ghToken) { $ghToken = $env:GH_TOKEN }
+
+if ($ghToken) {
+    Write-Info "Скачивание «$AssetName» через GitHub API (есть GITHUB_TOKEN или GH_TOKEN)…"
+    try {
+        $apiHeaders = @{
+            Authorization        = "Bearer $ghToken"
+            Accept                 = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+        }
+        $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$GhOwner/$GhRepo/releases/latest" -Headers $apiHeaders -Method Get
+        $asset = $rel.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
+        if (-not $asset) {
+            throw "В последнем релизе нет файла $AssetName."
+        }
+        $dlHeaders = @{
+            Authorization        = "Bearer $ghToken"
+            Accept                 = 'application/octet-stream'
+            'X-GitHub-Api-Version' = '2022-11-28'
+        }
+        Invoke-WebRequest -Uri "https://api.github.com/repos/$GhOwner/$GhRepo/releases/assets/$($asset.id)" -Headers $dlHeaders -OutFile $InstallerPath -UseBasicParsing
+    } catch {
+        Write-Err "Не удалось скачать через API: $($_.Exception.Message)"
+        Write-Err "Проверьте токен (нужен доступ к репозиторию) и наличие релиза с артефактом $AssetName."
+        exit 1
+    }
+} else {
+    Write-Info "Скачивание: $DownloadUrl"
+    try {
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $InstallerPath -UseBasicParsing
+    } catch {
+        Write-Err "Не удалось скачать установщик: $($_.Exception.Message)"
+        Write-Err "Если репозиторий приватный: задайте `$env:GITHUB_TOKEN (PAT с правом repo) и запустите скрипт снова. См. docs/INSTALL.md."
+        Write-Err "Публичный репозиторий: проверьте https://github.com/$GhOwner/$GhRepo/releases/latest"
+        exit 1
+    }
 }
 
 if (-not (Test-Path $InstallerPath) -or (Get-Item $InstallerPath).Length -lt 1024) {
