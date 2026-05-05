@@ -273,6 +273,25 @@ def run_voiceflow_application() -> None:
             name="GhostWriterPill",
         )
         pill_proc.start()
+        LOGGER.info("Pill process started (pid=%s)", pill_proc.pid)
+
+        def _pill_liveness_probe() -> None:
+            """Фоновая проверка: не завершился ли pill сразу после старта."""
+            import time
+
+            time.sleep(2.5)
+            if pill_proc is not None and not pill_proc.is_alive():
+                LOGGER.error(
+                    "Pill process завершился сразу после старта (exit_code=%s). "
+                    "Проверьте логи и доступность GUI/Tk в окружении.",
+                    pill_proc.exitcode,
+                )
+
+        threading.Thread(
+            target=_pill_liveness_probe,
+            daemon=True,
+            name="GhostPillLivenessProbe",
+        ).start()
 
     hotkey_listener_ref: list[PynputHotkeyListener | None] = [None]
 

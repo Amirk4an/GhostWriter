@@ -75,6 +75,42 @@ def _render_mic_menu_bar_template(size: int) -> Image.Image:
     return img
 
 
+def _resource_root_dir() -> Path:
+    """
+    Возвращает корень ресурсов приложения для dev и frozen-режима.
+
+    Returns:
+        Путь к каталогу с ``assets/`` и ``config/``.
+    """
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    return Path(__file__).resolve().parents[2]
+
+
+def _render_cross_platform_tray_icon(size: int = 64) -> Image.Image:
+    """
+    Иконка для Windows/Linux: стараемся использовать брендовый PNG из assets/icons.
+
+    На macOS используется template-иконка через rumps, а этот путь нужен для pystray
+    и fallback-сценариев. Если файл не найден/битый — рисуем контрастный кружок с микрофоном,
+    чтобы иконка точно была заметна в системном трее.
+    """
+    icon_png = _resource_root_dir() / "assets" / "icons" / "app_icon.png"
+    if icon_png.is_file():
+        try:
+            with Image.open(icon_png) as raw:
+                return raw.convert("RGBA").resize((size, size))
+        except OSError:
+            LOGGER.warning("Не удалось загрузить app_icon.png для трея: %s", icon_png, exc_info=True)
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    # Контрастная fallback-иконка (синий круг + белый микрофон).
+    draw.ellipse((4, 4, size - 4, size - 4), fill=(42, 91, 204, 255))
+    mic = _render_mic_menu_bar_template(size - 16)
+    img.alpha_composite(mic, dest=(8, 8))
+    return img
+
+
 class TrayApplication:
     """Управляет иконкой в трее и окном настроек."""
 
@@ -188,7 +224,10 @@ class TrayApplication:
         import pystray  # noqa: PLC0415
 
         config = self._config_manager.config
-        image = _render_mic_menu_bar_template(64).convert("RGBA")
+        if sys.platform == "darwin":
+            image = _render_mic_menu_bar_template(64).convert("RGBA")
+        else:
+            image = _render_cross_platform_tray_icon(64)
 
         # pystray на Darwin вызывает колбэк заголовка как f(menu_item) — см. pystray._base.MenuItem.text.
         menu_parts: list[object] = [
